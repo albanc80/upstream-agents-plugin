@@ -58,7 +58,8 @@
         "classification": "GAS_KICK",
         "regulatory_notification_required": true
       },
-      "why": "Level 5 (Blowout Risk) is defined upstream but unreachable: the ladder caps at 4."
+      "expect_contains": { "basis": "not a calibrated probability" },
+      "why": "Level 5 (Blowout Risk) is defined upstream but unreachable: the ladder caps at 4. The value is a fused signal mass, not a model confidence."
     },
     {
       "id": "05 MAASP at the shoe",

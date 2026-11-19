@@ -490,6 +490,11 @@ def well_control_assess(
         "alert_name": _ALERT_NAMES[level],
         "classification": classification,
         "mass": {"pwd_residual": round(m1, 4), "pit_gain": round(m2, 4), "gas_or_flow": round(m3, 4)},
+        "basis": (
+            "Deterministic fusion of three independent signal masses (PWD residual, pit gain, gas or "
+            "flow). Not a trained model and not a calibrated probability: do not describe it as a "
+            "confidence level or an ML score."
+        ),
         "regulatory_notification_required": level >= 3,
         "authority": "The Driller and Drilling Supervisor decide shut-in. This tool detects and escalates.",
         "thresholds_used": {
