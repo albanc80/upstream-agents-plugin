@@ -88,20 +88,34 @@ claude --plugin-dir .                                           # or load a work
 deliberately minimal — no icon, no screenshots — because the listing assets only matter if the
 plugin is submitted to a directory, and that is a separate decision.
 
-## ChatGPT (web, mobile, desktop chat)
+## ChatGPT desktop / Codex runtime
 
-Not supported, and not fixable by packaging. ChatGPT only consumes **remote** HTTPS MCP servers
-with OAuth; a bundled stdio server cannot be reached from a chat window. Ask it a well-control
-question and you will get a competent qualitative answer that explicitly says no deterministic
-verdict was produced — the skills are written to refuse rather than invent a threshold.
+The ChatGPT desktop app runs the Codex runtime, so it **can** host the bundled server — verified in a
+live session. Register it once in `~/.codex/config.toml`:
 
-Making it work is a deployment project, not a packaging one:
+```toml
+[mcp_servers.advisory-core]
+command = 'C:\Users\<you>\AppData\Local\hermes\bin\uv.exe'
+args = ["run", "--quiet", "--script", 'E:\.codex\plugins\cache\upstream-agents-plugin\upstream-agents-plugin\0.3.0\servers\advisory_core\main.py']
 
-- `servers/advisory_core/main.py` already speaks MCP; it needs a streamable-HTTP transport instead
-  of stdio, a public TLS endpoint, authentication and rate limiting.
-- Treat it as a production service. The package has no actuation path, but the thresholds and the
-  17 contracts are commercially sensitive and must not be publicly reachable without auth, logging
-  and a way to disable it.
+[mcp_servers.advisory-core.env]
+UV_CACHE_DIR = 'C:\Users\<you>\AppData\Local\Codex\advisory-core\uv-cache'
+```
+
+Two details make this robust: an **absolute path to `uv.exe`**, because a GUI-launched app may not
+inherit your shell's `PATH`, and a **dedicated `UV_CACHE_DIR`**, so dependency resolution is isolated
+and can be pre-warmed. Confirm with `codex mcp list` → `advisory-core … enabled`.
+
+## chatgpt.com and mobile
+
+Not supported, and not fixable by packaging: a browser tab or a phone has no local process to spawn.
+There the skills answer qualitatively and state that no deterministic verdict was produced, which is
+the designed refusal rather than a failure.
+
+Putting the tools in a browser session means hosting `servers/advisory_core` as a remote HTTPS MCP
+endpoint — streamable-HTTP transport, TLS, authentication, rate limiting, logging and a kill switch.
+A deployment and security decision, not a packaging one, and worth it only if browser sessions are a
+real usage target.
 
 ## OpenClaw
 

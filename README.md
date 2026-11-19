@@ -149,19 +149,21 @@ the harness can spawn a **local stdio process**, because that is how the advisor
 | **Claude Code** | yes | yes | `.claude-plugin/` shim, `claude plugin validate` passes, verified |
 | **OpenClaw** | v1 client | expected | bundles path — not exercised here |
 | **Copilot / Cursor / VS Code / Kiro** | v1 clients | client-dependent | they install the package; spawning the stdio server is their setting |
-| **ChatGPT (web, mobile, desktop chat)** | no | no | cannot host a local stdio MCP server |
+| **ChatGPT desktop / Codex runtime** | yes | yes | MCP entry in `~/.codex/config.toml` — verified in a live session |
+| **chatgpt.com, ChatGPT mobile** | no | no | no local process; needs a remote HTTPS MCP endpoint |
 
-**ChatGPT is the one genuine exclusion.** It only consumes *remote* HTTPS MCP endpoints with OAuth,
-so the bundled server can never be reached from a chat window. Point a chat client at this repo and
-you get a competent qualitative answer with no deterministic verdict — and that is the design
-working, not a defect:
+**The dividing line is whether the surface runs a local process**, not whose brand is on it. Anything
+running the Codex runtime — Codex CLI or the ChatGPT desktop app — hosts the bundled server; register
+it once in `~/.codex/config.toml` (see [docs/INSTALL.md](docs/INSTALL.md)). A browser tab or a phone
+cannot, so on chatgpt.com you get a competent qualitative answer with no deterministic verdict — and
+that is the design working, not a defect:
 
 > The advisory server was unavailable, so no data-quality score, formal alert level, kick
 > probability, or validated kill-sheet values were produced.
 
-Every skill is written to say exactly that rather than invent a threshold. Getting the tools into
-ChatGPT means hosting `servers/advisory_core` as a remote MCP endpoint with authentication — a
-deployment and security decision, not a packaging one.
+Every skill is written to say exactly that rather than invent a threshold. Putting the tools in a
+browser session means hosting the server as a remote MCP endpoint with authentication — a deployment
+and security decision, not a packaging one.
 
 ## Install
 
