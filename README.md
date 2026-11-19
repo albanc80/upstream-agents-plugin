@@ -84,6 +84,19 @@ The repository is private: every command above needs a GitHub identity that can 
 plugin's tools need [`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside
 the server script and resolved on first run.
 
+## Try it
+
+[`examples/`](examples/) holds one worked scenario — a gas influx on a 12¼ in section while the
+optimisation agent is still asking for more weight on bit — with 18 asserted values:
+
+```bash
+uv run --script examples/run_walkthrough.py      # expect: PASSED — 18 checks
+```
+
+It boots the real MCP server over stdio, so it doubles as the integration test and fails on any
+drift. [`examples/README.md`](examples/README.md) also gives the three client-side prompts worth
+pasting into Hermes, Codex or Claude, and the anti-patterns that mean a client is bluffing.
+
 ## Verify
 
 ```bash
