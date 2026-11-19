@@ -7,6 +7,96 @@ and well-lifecycle advisory agents, derived from a private reference implementat
 Every numeric recommendation is expected to come from the deterministic advisory server, not
 from a model's own arithmetic.
 
+## What it does
+
+Nine advisory domains across the well lifecycle, one deterministic engine behind them. It reads
+telemetry, scores it, applies thresholds, and tells you what the numbers mean and what is allowed.
+It never touches the rig.
+
+### What you can ask it
+
+| Ask about | You get | Skill |
+|---|---|---|
+| Influx, gain, losses, SIDPP, MAASP, kill sheet | Alert level and fused probability, kick/loss class, MAASP, kill MW, ICP, FCP | `well-control-guard` |
+| Drag, torque, overpull, a string that will not move | 0–100 risk score, mechanism, intervention, movement veto | `stuck-pipe-prevention` |
+| ROP, MSE, founder point, vibration | MSE, founder-point call, envelope-checked WOB/RPM change | `drilling-optimization` |
+| ECD, hole cleaning, mud weight, surge and swab | ECD against the window, transport ratio, margins | `hydraulics-and-fluids` |
+| Surveys, DLS, toolface, collision, landing | DLS and min-curvature position, separation factor, target position | `directional-and-geosteering` |
+| Casing design, cement job, bond log, wireline | Design factors, placement vs isolation, bond index | `well-construction` |
+| Perforation, stages, lift, decline, integrity | Stage and cluster checks, screenout, loading, decline, SCP | `completions-and-production` |
+| Channels, units, mnemonics, timestamps | Six-check quality score and the specific defect | `data-quality-and-standards` |
+| Who may act, conflicting advice, audit trail | Tier precedence, veto outcome, routing, chained record | `agentic-coordination` |
+| Anything spanning several domains | One specialist, chosen after the quality gate | `upstream-ops` |
+
+### What it identifies
+
+**Influx and losses.** A kick or loss on a five-step ladder — Normal, Monitor, Advisory, Well
+Control Alert, Emergency Shut-In Proposal — fused from pit gain, flow differential, gas and the PWD
+residual. Classifies `GAS_KICK`, `WATER_KICK` or `LOST_CIRCULATION`, and level 3 upward flags
+regulatory notification. Bands: probability 0.20 / 0.40 / 0.60 / 0.85, pit gain above 2 bbl
+advisory, above 5 bbl emergency.
+
+**Stuck pipe.** A 0–100 risk score from torque excess (0.40), overpull (0.30), overbalance (0.20)
+and inclination (0.10), banded at 25 advisory, 40 active, 60 immediate, 80 critical. Names the
+mechanism — differential sticking, pack-off, key seat, collapse — and above 60 it vetoes any WOB
+increase, offering WOB −3 klbs and RPM +10 instead.
+
+**Hole cleaning and hydraulics.** Cuttings transport ratio below 0.55 is a problem and below 0.40 a
+deficit; slip velocity 45 ft/min; ECD warning at 90% of fracture gradient and critical at 95%. The
+mud weight window wants 0.2 ppg overbalance and a 0.3 ppg ECD-to-gradient margin.
+
+**Drilling performance.** Teale MSE and the founder point: rising MSE at flat ROP means additional
+weight is buying heat, not hole. Changes below 2% are not worth making; vibration above 0.7 is
+dysfunction, not optimisation.
+
+**Trajectory.** DLS against a 5.0 deg/100 ft limit, position by minimum curvature rather than
+interpolation, 5 ft minimum survey spacing, well separation factor caution at 1.5 with a mandatory
+stop at 1.0, 25 ft collision boundary.
+
+**Tubulars and cement.** Design factors of 1.10 burst, 1.00 collapse and 1.30 tension, with drag
+above 15% of model as an alert. Cement: density channeling at 0.5 ppg or 10% of pressure, job
+pressure 200 psi over design, zonal isolation 0.70 to pass and 0.50 to fail, bond index 0.80 good
+and 0.60 marginal.
+
+**Completions and production.** Isolation gate of 0.70, at most 5 clusters per stage at 40 ft
+spacing, screenout on a 500 psi/min rise sustained over 3 readings, MAOP alert at 95%, liquid
+loading against a 1.2 Turner factor, sustained casing pressure flagged at 30 psi rising to 100 psi,
+reforecast when EUR moves 20%.
+
+**Formation evaluation.** Net-pay screens: water saturation at or below 0.65, porosity at least
+0.08, resistivity at least 20 ohm·m, shows where Sw is at or below 0.5.
+
+**Data defects.** Six checks — physical bounds, sequence, redundancy drift, outliers, completeness
+and voting — collapsed into one 0–1 score. Below 0.95 the sample is not actionable, and the correct
+answer becomes the defect rather than the value.
+
+**Conflicts and authority.** Which proposal wins by tier, which vetoes were raised, what safer
+alternative was generated, whether a human must confirm, and a hash-chained record of the decision.
+
+### What it computes
+
+31 formulas behind one tool, so no client does the arithmetic itself: pressure gradient,
+hydrostatic pressure, mud weight from pressure, buoyancy, ECD, MAASP, mud weight window, kick
+tolerance, kill mud weight, formation pressure, ICP, FCP · pipe and annular capacity, annular
+velocity, cuttings transport · Teale MSE · dogleg angle and severity, minimum curvature · Vshale,
+density porosity, Archie saturation · casing wall thickness, Barlow burst, API collapse, body yield
+· CBL bond index · Turner critical velocity, Arps hyperbolic decline.
+
+### Who decides
+
+17 agent contracts in four tiers: **3 safety** (well control, PWD, MWD), **12 NPT** (casing,
+cementing, completions, fluids, geosteering, hydraulics, LWD, production, stimulation, stuck pipe,
+well planning, wireline), **1 performance** (directional steering) and **1 cost** (drilling
+optimisation). The lower tier wins a conflict; safety outranks confidence.
+
+### What it will not do
+
+- **No actuation.** No BOP, choke, pump or setpoint command exists anywhere in the package.
+- **No safety verdict from prose.** The gates are tools; a skill that skips one is a defect.
+- **No invented thresholds.** Every number traces to a module and line in
+  [`docs/THRESHOLDS-TRACE.md`](docs/THRESHOLDS-TRACE.md).
+- **No site limits.** `site_validated` stays false until a named well supplies real ones.
+
 ## Status
 
 | Phase | Scope | State |
@@ -35,21 +125,6 @@ tools/validate.py    manifest + contract + skill + provenance gate
 .github/workflows/   CI: validate, test, schema conformance
 LICENSE · NOTICE     Apache-2.0 + engineering safety notice
 ```
-
-## Skills
-
-| Skill | Domain |
-|---|---|
-| `upstream-ops` | Router: quality gate first, then one specialist |
-| `well-control-guard` | Tier-1: kick/loss detection, alert ladder, kill sheet |
-| `stuck-pipe-prevention` | Risk score, four mechanisms, movement veto |
-| `drilling-optimization` | MSE, founder point, dysfunction diagnosis |
-| `hydraulics-and-fluids` | ECD, mud-weight window, hole cleaning |
-| `directional-and-geosteering` | Survey QA, DLS, collision, landing |
-| `well-construction` | Casing design factors, cementing, bond logs |
-| `completions-and-production` | Stage design, screenout, lift, decline, integrity |
-| `data-quality-and-standards` | Six-check quality gate, units, WITSML/ETP identity |
-| `agentic-coordination` | Tiers, vetoes, negotiation, routing, audit |
 
 ## Advisory tools
 
