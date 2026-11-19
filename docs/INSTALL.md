@@ -13,6 +13,30 @@ nothing to `pip install`.
 Without `uv`, the skills still load — you lose the deterministic verdicts and the skills will
 say so instead of guessing.
 
+## First run
+
+Registration is automatic — every verified client reads the package's own manifests, so nothing has
+to be wired by hand:
+
+| Client | What registers the server | When it takes effect |
+|---|---|---|
+| Hermes | `mcp.json` | next session ("deferred: MCP servers") |
+| Codex | `mcp.json`, via the plugin | next session — `codex mcp list` shows `advisory-core` |
+| Claude Code | `.mcp.json`, via `.claude-plugin/` | next session — `claude mcp list` shows the plugin entry |
+
+The **dependencies** are the part that resolves lazily, on first boot: about 9 s with an empty `uv`
+cache (`mcp`, `pydantic`, `pyyaml`). Warm them before a session, so a cold start cannot collide with
+a client's MCP startup timeout:
+
+```bash
+uv run --script servers/advisory_core/main.py --selftest
+```
+
+Expect five `[OK]` lines and `selftest OK`. It checks the install as well as warming it — 17
+contracts, 10 skills, 31 formulas and the policy YAML — and exits non-zero if any is missing. If a
+client still times out on its very first launch, raise its startup allowance (Codex:
+`startup_timeout_sec` in `config.toml`).
+
 ## Hermes
 
 ```bash
@@ -63,6 +87,21 @@ claude --plugin-dir .                                           # or load a work
 `claude plugin list` reports the version, source and enabled state. The marketplace entry is
 deliberately minimal — no icon, no screenshots — because the listing assets only matter if the
 plugin is submitted to a directory, and that is a separate decision.
+
+## ChatGPT (web, mobile, desktop chat)
+
+Not supported, and not fixable by packaging. ChatGPT only consumes **remote** HTTPS MCP servers
+with OAuth; a bundled stdio server cannot be reached from a chat window. Ask it a well-control
+question and you will get a competent qualitative answer that explicitly says no deterministic
+verdict was produced — the skills are written to refuse rather than invent a threshold.
+
+Making it work is a deployment project, not a packaging one:
+
+- `servers/advisory_core/main.py` already speaks MCP; it needs a streamable-HTTP transport instead
+  of stdio, a public TLS endpoint, authentication and rate limiting.
+- Treat it as a production service. The package has no actuation path, but the thresholds and the
+  17 contracts are commercially sensitive and must not be publicly reachable without auth, logging
+  and a way to disable it.
 
 ## OpenClaw
 

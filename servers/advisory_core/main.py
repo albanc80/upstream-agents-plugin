@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["mcp>=2", "pyyaml>=6"]
+# dependencies = ["mcp>=2,<3", "pyyaml>=6,<7"]
 # ///
 """advisory-core — the deterministic advisory spine as an MCP server.
 
@@ -345,7 +345,45 @@ def audit_trace(limit: int = 20) -> dict[str, Any]:
     }
 
 
+def selftest() -> int:
+    """Verify the install without starting a session: deps resolved, files intact, limits load.
+
+    This is also the cheapest way to warm the uv cache before a first session
+    (`uv run --script servers/advisory_core/main.py --selftest`), which avoids a slow cold
+    start colliding with a client's MCP startup timeout.
+    """
+    root = model.plugin_root()
+    checks: list[tuple[str, bool, str]] = []
+
+    manifest = root / "plugin.json"
+    checks.append(("plugin.json", manifest.exists(), str(manifest)))
+
+    contracts = sorted((root / "src/agents").glob("*.yaml"))
+    checks.append(("agent contracts", len(contracts) == 17, f"{len(contracts)} found"))
+
+    skills = sorted((root / "skills").glob("*/SKILL.md"))
+    checks.append(("skills", len(skills) == 10, f"{len(skills)} found"))
+
+    checks.append(("formulas", len(FORMULAS) == 31, f"{len(FORMULAS)} available"))
+
+    # Exercises the YAML policy load path, which is where a bad install fails first.
+    try:
+        validated = model.envelope_site_validated()
+        checks.append(("policy limits load", True, f"site_validated={str(validated).lower()}"))
+    except Exception as exc:  # noqa: BLE001 - the point is to report, not to raise
+        checks.append(("policy limits load", False, str(exc)))
+
+    failed = [name for name, ok, _ in checks if not ok]
+    for name, ok, detail in checks:
+        print(f"  [{'OK' if ok else 'FAIL'}] {name}: {detail}")
+    print(f"\n{'selftest FAILED' if failed else 'selftest OK'} — "
+          f"advisory-core {VERSION}, {len(FORMULAS)} formulas, plugin root {root}")
+    return 1 if failed else 0
+
+
 def main() -> None:
+    if "--selftest" in sys.argv:
+        raise SystemExit(selftest())
     mcp.run("stdio")
 
 

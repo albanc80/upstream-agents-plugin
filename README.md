@@ -137,6 +137,32 @@ cannot disagree. `compute` covers 31 formulas transcribed verbatim from the engi
 kill-mud weight, ICP/FCP, ECD, MSE, dogleg and minimum curvature, casing burst/collapse/tension,
 CBL bond index and Arps decline.
 
+## Harness support
+
+The package is portable, but *portable* is not the same as *every client*. What matters is whether
+the harness can spawn a **local stdio process**, because that is how the advisory tools are served.
+
+| Harness | Skills | Advisory tools | Path |
+|---|---|---|---|
+| **Hermes** | yes | yes | `hermes plugins install` — verified |
+| **Codex** | yes | yes | `codex plugin marketplace add` + `plugin add` — reads `mcp.json`, verified |
+| **Claude Code** | yes | yes | `.claude-plugin/` shim, `claude plugin validate` passes, verified |
+| **OpenClaw** | v1 client | expected | bundles path — not exercised here |
+| **Copilot / Cursor / VS Code / Kiro** | v1 clients | client-dependent | they install the package; spawning the stdio server is their setting |
+| **ChatGPT (web, mobile, desktop chat)** | no | no | cannot host a local stdio MCP server |
+
+**ChatGPT is the one genuine exclusion.** It only consumes *remote* HTTPS MCP endpoints with OAuth,
+so the bundled server can never be reached from a chat window. Point a chat client at this repo and
+you get a competent qualitative answer with no deterministic verdict — and that is the design
+working, not a defect:
+
+> The advisory server was unavailable, so no data-quality score, formal alert level, kick
+> probability, or validated kill-sheet values were produced.
+
+Every skill is written to say exactly that rather than invent a threshold. Getting the tools into
+ChatGPT means hosting `servers/advisory_core` as a remote MCP endpoint with authentication — a
+deployment and security decision, not a packaging one.
+
 ## Install
 
 See [docs/INSTALL.md](docs/INSTALL.md). Verified against the real clients:
@@ -176,7 +202,8 @@ pasting into Hermes, Codex or Claude, and the anti-patterns that mean a client i
 
 ```bash
 python tools/validate.py                                         # expect PASS 0 failures
-uv run --with pytest --with pyyaml -- python -m pytest tests -q   # expect 30 passed
+uv run --with pytest --with pyyaml -- python -m pytest tests -q   # expect 48 passed
+uv run --script servers/advisory_core/main.py --selftest         # expect 5 [OK] lines
 hermes plugins validate .                                        # portable v1 accepted
 ```
 

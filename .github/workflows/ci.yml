@@ -22,6 +22,9 @@ jobs:
       - name: Working example — MCP end-to-end walkthrough
         run: uv run --script examples/run_walkthrough.py
 
+      - name: Server selftest (install integrity)
+        run: uv run --script servers/advisory_core/main.py --selftest
+
       - name: plugin.json conforms to the published Agent Plugins v1 schema
         run: |
           curl -sS -o /tmp/plugin.schema.json https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
