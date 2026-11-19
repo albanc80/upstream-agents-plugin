@@ -31,7 +31,7 @@ servers/advisory_core deterministic advisory spine — 11 MCP tools, 31 formulas
 tests/               engine parity + behaviour tests (30)
 docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE
 tools/validate.py    manifest + contract + skill + provenance gate
-.claude-plugin/      Claude shim (Claude is not a v1 client)
+.claude-plugin/      Claude shim + marketplace.json (Codex reads it too)
 .github/workflows/   CI: validate, test, schema conformance
 LICENSE · NOTICE     Apache-2.0 + engineering safety notice
 ```
@@ -64,16 +64,25 @@ CBL bond index and Arps decline.
 
 ## Install
 
-See [docs/INSTALL.md](docs/INSTALL.md). Short form:
+See [docs/INSTALL.md](docs/INSTALL.md). Verified against the real clients:
 
 ```bash
+# Hermes
 hermes plugins install ilbambinomx/upstream-agents-plugin && hermes plugins enable upstream-agents-plugin
-codex plugin marketplace add https://github.com/ilbambinomx/upstream-agents-plugin && codex plugin add upstream-agents-plugin
-claude --plugin-dir .          # Claude uses the .claude-plugin shim
+
+# Codex — the repo declares itself as a marketplace (.claude-plugin/marketplace.json)
+codex plugin marketplace add ilbambinomx/upstream-agents-plugin
+codex plugin add upstream-agents-plugin@upstream-agents-plugin
+
+# Claude Code
+/plugin install upstream-agents-plugin --marketplace ilbambinomx/upstream-agents-plugin
 ```
 
-The tools need [`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside the
-server script and resolved on first run.
+Or from a working copy, without installing: `hermes plugins install .`, `claude --plugin-dir .`.
+
+The repository is private: every command above needs a GitHub identity that can read it. The
+plugin's tools need [`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside
+the server script and resolved on first run.
 
 ## Verify
 

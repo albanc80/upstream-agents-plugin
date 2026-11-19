@@ -1,0 +1,20 @@
+{
+  "name": "upstream-agents-plugin",
+  "owner": {
+    "name": "Alberto Ancona"
+  },
+  "interface": {
+    "displayName": "Upstream Agents Plugin"
+  },
+  "plugins": [
+    {
+      "name": "upstream-agents-plugin",
+      "source": "./",
+      "category": "engineering",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      }
+    }
+  ]
+}

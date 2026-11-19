@@ -34,25 +34,35 @@ stale it will report `Repository not found`; pass a token URL or sign in with `g
 ## Codex
 
 ```bash
-codex plugin marketplace add https://github.com/ilbambinomx/upstream-agents-plugin
-codex plugin add upstream-agents-plugin
+codex plugin marketplace add ilbambinomx/upstream-agents-plugin
+codex plugin add upstream-agents-plugin@upstream-agents-plugin
 ```
 
-Codex consumes the same `plugin.json` and the same `skills/` directory. For a local working
-copy during development, `~/.codex/skills` accepts the skill folders directly.
+Codex needs a **marketplace**, not just a plugin: it reads
+`.agents/plugins/marketplace.json` or, as here, a Claude-compatible
+`.claude-plugin/marketplace.json` at the repository root. The `add` step requires the
+`<plugin>@<marketplace>` form — a bare name fails with "plugin requires --marketplace".
+`codex plugin list` shows the version and status.
+
+For a local working copy during development, `codex plugin marketplace add ./` from the repo root
+works too, and `~/.codex/skills` accepts the skill folders directly.
 
 ## Claude (Code, Desktop)
 
 Claude is **not** an Agent Plugins v1 client, so the package ships a shim at
-`.claude-plugin/plugin.json` plus a `.mcp.json` that points at the same server:
+`.claude-plugin/plugin.json` plus a `.mcp.json` that points at the same server, and declares itself
+as a marketplace in `.claude-plugin/marketplace.json` (which also carries the required `owner`).
 
 ```bash
-claude --plugin-dir .          # load this working copy
-claude plugin validate .       # manifest and component check
+claude plugin validate .                                        # verified: passes
+claude plugin marketplace add ilbambinomx/upstream-agents-plugin
+claude plugin install upstream-agents-plugin@upstream-agents-plugin
+claude --plugin-dir .                                           # or load a working copy without installing
 ```
 
-The skills are the same files; only the manifest differs. A marketplace listing is deliberately
-not included — that needs the marketplace schema and a distribution decision.
+`claude plugin list` reports the version, source and enabled state. The marketplace entry is
+deliberately minimal — no icon, no screenshots — because the listing assets only matter if the
+plugin is submitted to a directory, and that is a separate decision.
 
 ## OpenClaw
 
