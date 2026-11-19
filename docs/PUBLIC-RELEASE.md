@@ -11,7 +11,7 @@ because they change ownership or visibility of a live repository.
 | Check | Result |
 |---|---|
 | Working tree clean, no unpushed commits | yes |
-| History is a single commit, no upstream-platform references | yes |
+| History rewritten to a GitHub noreply identity, no upstream-platform references | yes |
 | No credentials, tokens or API keys in tracked files or history | yes |
 | No absolute personal paths in docs (all `<you>` placeholders) | yes |
 | No personal email addresses in tracked files | yes |
@@ -84,10 +84,11 @@ security → Private vulnerability reporting**. Without it the file points at no
 
 ## 7. Consider before flipping
 
-- **Commit author email becomes public.** The history carries `albanc80@gmail.com`. If you want it
-  hidden, amend the single commit to a GitHub noreply address first — trivial now, awkward later.
-- **Tag the release.** There is no tag yet. `git tag -a v0.3.0 -m ...` after the flip gives clients
-  a stable `@v0.3.0` ref instead of tracking `main`.
+- ~~**Commit author email**~~ — done. All 8 commits rewritten to
+  `293514256+albanc80@users.noreply.github.com`; no other identity is reachable from any ref. Note
+  that a rewrite does not necessarily purge GitHub's orphaned objects, so if total removal matters
+  ask GitHub Support to garbage-collect, or squash to a single fresh commit.
+- ~~**Tag the release**~~ — done. `v1.0.0` is tagged and pushed, matching `plugin.json`.
 - **"Private reference implementation" phrasing** appears in `docs/THRESHOLDS-TRACE.md`,
   `docs/BOUNDARIES.md`, and every contract header. It is honest and does not name anything, but it
   does tell a reader an internal upstream exists. Keep or soften — your call.

@@ -36,5 +36,10 @@ distributed here.
 
 ## Supported versions
 
-The `main` branch and the latest tagged release. This package is pre-1.0 and makes no compatibility
-promises across minor versions; a threshold or output-shape change is a minor-version bump.
+The `main` branch and the latest tagged release (`v1.0.0`). `plugin.json` is the single source of
+version truth; the advisory server reads it at runtime rather than hardcoding a number.
+
+Versions are semver: a correction to a transcribed threshold, a new contract or a new skill is a
+minor bump; changing an output shape or a contract field that clients read is a major bump.
+`site_validated: false` in `src/policies/site.yaml` stays honest until site limits are supplied —
+correcting a baseline default does not make the package site-validated.
