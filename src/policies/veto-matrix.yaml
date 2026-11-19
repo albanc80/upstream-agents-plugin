@@ -1,0 +1,105 @@
+# ---------------------------------------------------------------------------
+# Priority hierarchy, veto matrix and negotiation protocol
+# Engine modules: orchestration/priority_hierarchy.py, negotiation_protocol.py,
+#      data/proposals.py (PriorityTier), safety/autonomy_manager.py
+# ---------------------------------------------------------------------------
+schema: upstream-agents-plugin/policy/v1
+id: veto-matrix
+
+tiers:
+  # Verified against the implementation, which does NOT match the prose in
+  # priority_hierarchy.py: three agents declare SAFETY, twelve declare NPT, and the
+  # docstring names only one tier-1 holder. The implementation wins; the discrepancy is
+  # recorded below rather than silently resolved.
+  - tier: 1
+    name: SAFETY
+    veto: absolute
+    veto_holders: [well-control-monitoring-agent]
+    ranked_members: [pwd-agent, mwd-agent, well-control-monitoring-agent]
+    rationale: "Blowout prevention outranks every other consideration."
+  - tier: 2
+    name: NPT
+    veto: movement
+    veto_holders: [stuck-pipe-prevention-agent]
+    ranked_members:
+      - casing-agent
+      - cementing-agent
+      - completions-agent
+      - fluids-control-agent
+      - geosteering-agent
+      - hydraulics-optimization-agent
+      - lwd-agent
+      - production-monitoring-agent
+      - stimulation-agent
+      - stuck-pipe-prevention-agent
+      - well-planning-agent
+      - wireline-logging-agent
+    rationale: "Protects the operation from avoidable non-productive time."
+  - tier: 3
+    name: PERFORMANCE
+    veto: trajectory
+    veto_holders: [directional-steering-agent]
+    ranked_members: [directional-steering-agent]
+    rationale: "Protects well placement and survey validity."
+  - tier: 4
+    name: COST
+    veto: none
+    veto_holders: []
+    ranked_members: [drilling-optimization-agent]
+    rationale: "Optimisation never overrides the three tiers above it."
+
+tier_vs_veto: >
+  Tier ranks proposals and breaks ties by composite confidence. Veto power is separate:
+  only the three agents that override veto() can reject another agent's proposal. PWD and
+  MWD sit at tier 1 with no veto, which is why the matrix distinguishes ranked_members
+  from veto_holders.
+
+implementation_discrepancy:
+  detail: >
+    priority_hierarchy.py and Well Control Monitoring specification describe Well Control as the single Tier-1
+    agent. The implementation also places PWD and MWD at SAFETY, and puts eleven
+    lifecycle agents (casing, cementing, completions, production, wireline, stimulation,
+    well planning, geosteering, hydraulics, fluids, LWD) at NPT alongside stuck pipe.
+    Consequence: a cementing or production advisory outranks a drilling-performance one
+    and ties with stuck-pipe prevention. Recorded, not corrected — changing the tier
+    table is an engine design decision, not a transcription choice.
+  sources:
+    - "agents/*.py (priority_tier ClassVar)"
+    - "orchestration/priority_hierarchy.py:1-8"
+
+tie_break: "Within a tier, the highest composite confidence wins."
+
+negotiation:
+  window_ms: 2000
+  stage_timeouts_ms:
+    proposal_timeout: 500
+    constraint_eval: 400
+    alternative_gen: 600
+    consensus: 500
+  stages:
+    - PROPOSAL_PUBLICATION
+    - CONSTRAINT_EVALUATION
+    - ALTERNATIVE_GENERATION
+    - CONSENSUS_CONFIRMATION
+  contenders: [parameter_change]
+  outcomes:
+    - CONSENSUS
+    - SAFETY_VETO
+    - DEADLOCK
+    - TIMEOUT
+
+autonomy:
+  levels: 1..5
+  promotion: "performance_score > 0.85 sustained over 50 cycles, then human-confirmed"
+  demotion: "safety violation to level 1 immediately; or score < 0.70 for 10 cycles drops one level"
+  routing_thresholds:
+    human_confirm: 0.70
+    auto_execute: 0.85
+  routing:
+    advisory_only: "confidence < 0.70"
+    human_confirm: "level == 1, or confidence < 0.85"
+    auto_execute: "confidence >= 0.85 and level >= 2"
+  invariant: >
+    Routing governs a live engine runtime. In this plugin every agent is advisory at every
+    level: no path here issues an auto-execute, because nothing outside the engine holds
+    execution authority.

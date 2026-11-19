@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: pwd-agent
+title: Pwd.py
+tier: 1
+tier_name: SAFETY
+
+summary: >
+  PWD Agent — Pressure While Drilling (PWD specification). Tier-1 sensing/advisory agent: the authoritative downhole ECD / mud-weight-window record. Publishes ECD, the operational MWW, and MAASP; runs a Kalman filter on
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: ecd
+    unit: ppg
+  - channel: flow_rate
+    unit: gpm
+  - channel: gas
+    unit: "%"
+  - channel: mwd_annular_pressure
+    unit: psi
+  - channel: standpipe_pressure
+    unit: psi
+
+thresholds:
+  ecd_warning_fraction_of_fg: 0.9
+  ecd_critical_fraction_of_fg: 0.95
+  kick_sigma_threshold: 3.0
+  fg_margin_above_emw_max: 0.3  # operational MWW max = FG - 0.3 ppg
+  mw_pp_min_overbalance: 0.2
+  ecd_fg_min_margin: 0.3
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/pwd_agent.py"

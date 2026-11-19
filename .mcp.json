@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "advisory-core": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/servers/advisory_core/main.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    }
+  }
+}

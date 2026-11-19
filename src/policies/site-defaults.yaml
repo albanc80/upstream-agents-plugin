@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Site values. Deliberately NOT populated.
+#
+# The envelope limits in safety-envelope.yaml are baseline engineering defaults. Using them
+# for a real well without a named source would be inventing an operating limit. This file
+# is the only place site limits may enter, and it must be filled per field/well.
+# ---------------------------------------------------------------------------
+schema: upstream-agents-plugin/policy/v1
+id: site-defaults
+
+site_validated: false
+well: null
+field: null
+source_document: null
+approved_by: null
+effective_from: null
+
+# Copy the shape from safety-envelope.yaml and replace every value from an approved
+# drilling programme before any numeric output is presented as a limit.
+overrides: {}
+
+guardrails:
+  - "Until site_validated is true, label every limit as a baseline default, not a site limit."
+  - "Never merge a site override with a default silently; report which value applied."

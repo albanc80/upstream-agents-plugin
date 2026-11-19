@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Manifest, contracts, skills, provenance
+        run: uv run --quiet --with pyyaml -- python tools/validate.py
+
+      - name: Advisory spine tests (parity with the reference implementation + behaviour)
+        run: uv run --quiet --with pytest --with pyyaml -- python -m pytest tests -q
+
+      - name: plugin.json conforms to the published Agent Plugins v1 schema
+        run: |
+          curl -sS -o /tmp/plugin.schema.json https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
+          uv run --quiet --with jsonschema -- python - <<'PY'
+          import json, jsonschema
+          schema = json.load(open("/tmp/plugin.schema.json"))
+          doc = json.load(open("plugin.json"))
+          jsonschema.validate(doc, schema)
+          print("manifest valid against", schema.get("$id"))
+          PY
+
+      - name: mcp.json declares only portable fields
+        run: |
+          uv run --quiet --with pyyaml -- python - <<'PY'
+          import json
+          doc = json.load(open("mcp.json"))
+          assert set(doc) == {"$schema", "mcpServers"}, set(doc)
+          for name, server in doc["mcpServers"].items():
+              assert server["type"] in {"stdio", "streamable-http", "sse"}, server["type"]
+              if server["type"] == "stdio":
+                  assert server["command"], name
+          print("mcp.json ok:", ", ".join(doc["mcpServers"]))
+          PY

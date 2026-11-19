@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: completions-agent
+title: Completions.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Completions Agent. Tier-2 completions agent, active during Completions: designs the completion from the Well State Repository's petrophysical summary and enforces the ZIA hard gate
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: production_rate
+    unit: stb/d
+
+thresholds:
+  zia_gate: 0.7
+  max_clusters_per_stage: 5
+  min_cluster_spacing_ft: 40.0
+  rod_pump_max_stb_d: 400.0
+  esp_min_stb_d: 1000.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/completions_agent.py"

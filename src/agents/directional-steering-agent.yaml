@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: directional-steering-agent
+title: Directional Steering.py
+tier: 3
+tier_name: PERFORMANCE
+
+summary: >
+  Directional Steering Agent. Tier-3 trajectory agent: tracks the real-time wellbore position (minimum curvature), monitors anti-collision separation factor against offset wells, and
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: trajectory
+  scope: [parameter_change]
+  when:
+    - "proposed DLS would exceed the envelope limit"
+
+inputs:
+  - channel: azimuth
+    unit: deg
+  - channel: inclination
+    unit: deg
+
+thresholds:
+  wsf_caution: 1.5
+  wsf_mandatory_stop: 1.0
+  collision_boundary_ft: 25.0
+  lateral_offset_limit_ft: 50.0
+  min_survey_spacing_ft: 5.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/directional_steering_agent.py"

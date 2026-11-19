@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: hydraulics-optimization-agent
+title: Hydraulics.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Hydraulics Optimization Agent. Tier-2 agent: the primary ECD controller. Models ECD + cuttings transport ratio (CTR), and proposes pump-rate (flow) changes to keep ECD below FG and CTR above
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: flow_rate
+    unit: gpm
+  - channel: inclination
+    unit: deg
+  - channel: standpipe_pressure
+    unit: psi
+
+thresholds:
+  flow_auto_delta_gpm: 50.0
+  ctr_adequate: 0.55
+  ctr_deficit: 0.4
+  ecd_warn_fraction_of_fg: 0.9
+  fg_margin_above_emw_max: 0.3
+  hole_diameter_in: 8.5
+  pipe_diameter_in: 5.0
+  slip_velocity_ft_min: 45.0
+  gpm_per_bbl_min: 42.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/hydraulics_agent.py"

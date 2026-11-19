@@ -1,0 +1,23 @@
+# local env / credentials
+.env
+.env.*
+!.env.example
+*.local.json
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.uv-cache/
+
+# plugin data volumes and client state
+.plugin-data/
+dist/
+*.log
+
+# plugin runtime data (audit trail)
+.data/
+
+# OS
+Thumbs.db
+.DS_Store

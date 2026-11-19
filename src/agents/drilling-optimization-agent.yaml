@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: drilling-optimization-agent
+title: Drilling Optimization.py
+tier: 4
+tier_name: COST
+
+summary: >
+  Drilling Optimization Agent. Tier-4 performance agent: maximizes ROP by proposing WOB/RPM changes within its authority envelope, subject to vibration and ECD constraints. The XGBoost ROP
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: torque
+    unit: ft-lbs
+
+thresholds:
+  wob_auto_delta_klbf: 3.0
+  rpm_auto_delta: 5.0
+  vibration_threshold: 0.7
+  min_improvement_pct: 2.0
+  bit_size_in: 8.5
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/drilling_optimization_agent.py"

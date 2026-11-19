@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: mwd-agent
+title: Mwd.py
+tier: 1
+tier_name: SAFETY
+
+summary: >
+  MWD Agent — Measurement While Drilling (MWD specification). Tier-1 perception agent: decodes directional surveys, computes minimum-curvature wellbore position, propagates (simplified) ISCWSA position uncertainty, and is
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: azimuth
+    unit: deg
+  - channel: inclination
+    unit: deg
+
+thresholds:
+  min_actionable_quality: 0.95
+  uncertainty_fraction_of_md: 0.005
+  uncertainty_floor_ft: 5.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/mwd_agent.py"

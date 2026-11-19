@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: production-monitoring-agent
+title: Production.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Production Monitoring Agent. Post-handover monitoring, active during Production: liquid-loading risk via the Turner criterion (FR-150A: v_actual < 1.2 x v_Turner -> alert), sustained casing
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: casing_pressure
+    unit: psi
+  - channel: production_rate
+    unit: stb/d
+  - channel: tubing_pressure
+    unit: psi
+
+thresholds:
+  turner_loading_factor: 1.2
+  eur_reforecast_variance: 0.2
+  scp_rise_alert_psi: 30.0  # demo-cadence stand-in for the 0.5 psi/hr slope
+  scp_bsee_flag_psi: 100.0  # annular pressure rise above baseline (FR-150A)
+  velocity_per_stb_d: 0.01
+  surface_tension_dyne_cm: 60.0
+  liquid_density_lb_ft3: 67.0
+  gas_density_lb_ft3: 2.7
+  ema_alpha: 0.05
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/production_agent.py"

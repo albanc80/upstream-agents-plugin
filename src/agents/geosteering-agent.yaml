@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: geosteering-agent
+title: Geosteering.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Geosteering Agent. Tier-2 geological navigation: tracks the bit's TVD within the stratigraphic column, classifies formation/reservoir quality from LWD logs, and proposes
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: azimuth
+    unit: deg
+  - channel: gamma_ray
+    unit: gAPI
+  - channel: inclination
+    unit: deg
+  - channel: resistivity
+    unit: ohm.m
+
+thresholds:
+  default_target_top_tvd: 9000.0
+  default_target_base_tvd: 9400.0
+  auto_tvd_correction_ft: 1.0
+  exit_warning_ft: 50.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/geosteering_agent.py"

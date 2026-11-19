@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "upstream-agents-plugin",
+  "version": "0.3.0",
+  "description": "Upstream drilling and well-lifecycle advisory agents as a portable Agent Plugins v1 package: 17 agent contracts, 10 skills, and a deterministic advisory MCP. Advisory-only, never actuates.",
+  "author": {
+    "name": "Alberto Ancona"
+  },
+  "repository": "https://github.com/ilbambinomx/upstream-agents-plugin",
+  "keywords": [
+    "upstream",
+    "drilling",
+    "well-control",
+    "agent-skills",
+    "mcp",
+    "witsml",
+    "etp"
+  ],
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,134 @@
+# ---------------------------------------------------------------------------
+# Upstream Agents Plugin — agent contract
+#
+# Thresholds are transcribed verbatim from the author's private reference
+# implementation, which is not distributed with this package. Do not edit a number
+# here: change the implementation and re-extract, so the value keeps a traceable
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+# ---------------------------------------------------------------------------
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: stuck-pipe-prevention-agent
+title: Stuck Pipe Prevention
+tier: 2
+tier_name: NPT
+phase: [drilling, connection, trip]
+
+summary: >
+  Tier-2 non-productive-time shield. Produces a continuous 0-100 stuck-pipe risk score
+  with a 4-level ladder, a probable-mechanism classification, and a median time-to-stuck
+  estimate. Holds movement-veto authority: it blocks WOB increases and offers a
+  reduced-WOB / higher-RPM alternative.
+
+autonomy:
+  ceiling: advisory
+  rationale: "Tier-2 veto shapes other agents' proposals; it does not execute changes."
+
+veto:
+  kind: movement
+  scope: [parameter_change]
+  when:
+    - "risk_score >= 60"
+    - "proposal increases wob above current wob"
+  effect: >
+    The WOB-increase proposal is rejected and an alternative carrying a reduced WOB and
+    a raised RPM re-enters the round as a candidate (FR-023 alternative generation).
+  alternative:
+    wob_delta_klbs: -3.0
+    rpm_delta: 10.0
+
+inputs:
+  - channel: torque
+    unit: ft-lbs
+    quality_floor: 0.95
+    role: primary signal via slow-EMA excess over baseline
+  - channel: hook_load
+    unit: klbf
+    quality_floor: 0.95
+    role: overpull detection
+  - channel: ecd
+    unit: ppg
+    quality_floor: 0.95
+    role: overbalance proxy (ecd minus the envelope minimum)
+  - channel: inclination
+    unit: deg
+    role: geometric contribution, sin(inclination)
+
+thresholds:
+  risk_score:
+    advisory: 25.0
+    active: 40.0
+    immediate: 60.0
+    critical: 80.0
+  weights:
+    torque: 0.40
+    overpull: 0.30
+    overbalance: 0.20
+    inclination: 0.10
+  scales:
+    torque_ft_lbs: 6000.0
+    overpull_klbf: 60.0
+    overbalance_floor_ppg: 3.0
+    overbalance_span_ppg: 2.0
+  baseline_ema_alpha: 0.05
+  time_to_stuck_min:
+    floor: 5.0
+    span: 90.0
+
+mechanisms:
+  - id: DIFFERENTIAL_STICKING
+    intervention: "Reduce overbalance; spot lubricant pill; reduce WOB; circulate."
+  - id: PACK_OFF
+    intervention: "Increase flow rate and circulate; pick up off-bottom; pump high-vis sweep."
+  - id: KEY_SEAT
+    intervention: "Ream through the key seat with low WOB; consider a key-seat wiper sub."
+  - id: WELLBORE_COLLAPSE
+    intervention: "Increase mud weight; reduce drilling speed; consider backreaming."
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command]
+  emit:
+    - when: "risk_score >= 60"
+      action: alert
+    - when: "risk_score >= 25 and risk_score < 60"
+      action: advisory
+    - when: "risk_score < 25"
+      action: none
+
+refusals:
+  - never_estimates: "stuck point without a measured free-point or string-weight indication"
+  - never_advises: "back-off or jarring as a first move; those are escalation steps after circulation fails"
+  - never_treats: "one mechanism as certain — always state the probability spread"
+  - when_unavailable: >
+      Without torque and hook load this agent has no signal. Say so; do not score risk
+      from inclination alone.
+
+compute:
+  - teale_mse_psi
+  - dogleg_severity_deg_per_100ft
+  - minimum_curvature
+  - annular_velocity_ft_per_min
+  - cuttings_transport_ratio
+
+known_gaps:
+  - id: classifier-is-heuristic
+    detail: >
+      The specification specifies an XGBoost mechanism classifier and a Cox survival model. The
+      implementation substitutes fixed additive heuristics, so mechanism probabilities
+      are not calibrated and time-to-stuck is a straight line, not a survival estimate.
+      Treat both as indicative only.
+    source: agents/stuck_pipe_agent.py:168-181
+  - id: risk-weights-uncalibrated
+    detail: >
+      The 0.40/0.30/0.20/0.10 weighting and the 6000 / 60.0 scales are engineering
+      defaults, not field-calibrated values. Present the score as a relative indicator
+      across time for one well, never as an absolute probability.
+    source: agents/stuck_pipe_agent.py:127-141
+
+citations:
+  - "Stuck Pipe Prevention specification sec 10 (STUCK_PIPE_CONSTRAINTS)"
+  - "FR-021"
+  - "FR-022"
+  - "FR-023"
+  - "FR-024"

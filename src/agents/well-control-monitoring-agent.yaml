@@ -1,0 +1,162 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: well-control-monitoring-agent
+title: Well Control Monitoring
+tier: 1
+tier_name: SAFETY
+phase: [drilling]
+
+summary: >
+  Tier-1 safety sentinel. Fuses surface and downhole signals into a kick/loss
+  probability, escalates a 5-level alert ladder, classifies the event, and freezes
+  other agents' autonomous parameter changes. It never commands the BOP, the choke
+  manifold, or any setpoint.
+
+autonomy:
+  ceiling: advisory
+  rationale: "Shut-in authority is the Driller's and the Drilling Supervisor's, always."
+
+veto:
+  kind: absolute
+  scope: [parameter_change]
+  when:
+    - "alert_level >= 3"
+    - "kick_probability > 0.60"
+  effect: >
+    Every other agent's PARAMETER_CHANGE proposal is rejected and the negotiation
+    round resolves to SAFETY_VETO. Alerts and advisories are never blocked, because
+    they must always reach a human.
+
+inputs:
+  - channel: pit_volume
+    unit: bbl
+    quality_floor: 0.95
+    role: primary surface signal (pit gain versus a slow-EMA baseline)
+  - channel: flow_rate
+    unit: gpm
+    quality_floor: 0.95
+    role: flow in
+  - channel: flow_out
+    unit: gpm
+    quality_floor: 0.95
+    role: flow out
+  - channel: ecd
+    unit: ppg
+    quality_floor: 0.95
+    role: static mud weight proxy until a mud model lands
+  - channel: gas
+    unit: "%"
+    quality_floor: 0.95
+    role: total gas from the mud-log detector; tertiary kick indicator
+  - channel: bit_depth
+    unit: ft
+    role: depth fallback for MAASP
+
+thresholds:
+  kick_probability:
+    monitor: 0.20
+    advisory: 0.40
+    well_control_alert: 0.60
+    emergency: 0.85
+  pit_gain:
+    advisory_bbl: 2.0
+    emergency_bbl: 5.0
+  pit_baseline_ema_alpha: 0.02
+  background_gas_pct: 0.5
+
+alert_ladder:
+  - level: 0
+    name: Normal
+  - level: 1
+    name: Monitor
+  - level: 2
+    name: Advisory
+  - level: 3
+    name: Well Control Alert
+    notification: [driller, drilling_supervisor]
+    regulatory_notification_required: true
+  - level: 4
+    name: Emergency Shut-In Proposal
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, survey_request, bop_command, choke_command, shut_in]
+  emit:
+    - when: "alert_level >= 3"
+      action: alert
+    - when: "alert_level in [1, 2]"
+      action: advisory
+    - when: "alert_level == 0"
+      action: none
+
+refusals:
+  - never_commands: "BOP, choke manifold, or any rig setpoint"
+  - never_decides: "shut-in, kill method selection — escalate to Driller and Drilling Supervisor"
+  - never_estimates: "kill mud weight from an assumed SIDPP; a measured value is required"
+  - when_unavailable: >
+      If the required channels are missing or below the quality floor, state that no
+      verdict is available. Never fall back to judgement on stale data.
+
+compute:
+  - maasp_psi
+  - kill_mud_weight_ppg
+  - initial_circulating_pressure_psi
+  - final_circulating_pressure_psi
+  - hydrostatic_pressure_psi
+  - is_within_mud_weight_window
+
+notes:
+  - >
+    The kick probability fuses three terms: PWD Kalman residual (primary), pit gain
+    (secondary), and gas units / flow differential (tertiary). Of these, the PWD residual
+    is now wired (engine branch, fusion fix) by carrying the
+    previous cycle's value on RigState, because agents run concurrently within a cycle.
+    Expect one cycle of lag (~1 s at 1 Hz) and never present the residual as same-tick.
+  - >
+    All three fusion terms are now live: PWD residual (primary), pit gain (secondary),
+    gas or flow differential (tertiary). Gas-cut mud still biases ECD and MAASP
+    optimistic because no mud/gas model exists — see the PWD contract.
+
+known_gaps:
+  - id: gas-cut-not-corrected-in-ecd
+    detail: >
+      Gas now flows as Channel.GAS, but
+      no mud/gas model exists, so ECD and MAASP are computed on a static gradient and read
+      optimistic while gas is in the annulus. Never present an ECD margin as conservative
+      during a gas event.
+    source: agents/pwd_agent.py (PwdPercept.gas_units_pct)
+  - id: pwd-residual-lags-one-cycle
+    detail: >
+      The residual reaches well control from the previous orchestration cycle because
+      agents are gathered concurrently. Acceptable at 1 Hz for a confirmation term, but
+      it must be labelled as such; a same-cycle value would need PWD to run in a phase
+      ahead of the other agents.
+    source: orchestration/orchestrator.py (run_cycle publish/capture)
+  - id: alert-level-5-unreachable
+    detail: >
+      "Blowout Risk" is defined in _ALERT_NAMES, but _alert_level() caps at 4, so level 5
+      can never be emitted. The ladder is effectively 0-4.
+    source: agents/well_control_agent.py:33-40
+
+citations:
+  - "Well Control Monitoring specification sec 5.2 (signal fusion)"
+  - "Well Control Monitoring specification sec 10 (WELL_CONTROL_CONSTRAINTS)"
+  - "API RP 96"
+  - "30 CFR 250"
+  - "IADC WellSharp"

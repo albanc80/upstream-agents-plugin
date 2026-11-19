@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: fluids-control-agent
+title: Fluids.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Fluids Control Agent. Tier-2 advisory "digital mud engineer": tracks mud properties vs the program spec, enforces the mud-weight window (MW >= PP + 0.2, MW <= FG - 0.3), assesses
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: gamma_ray
+    unit: gAPI
+  - channel: mwd_temperature
+    unit: degF
+
+thresholds:
+  default_api_filtrate_ml: 3.5
+  default_kcl_g_per_l: 35.0
+  default_phpa_lb_bbl: 1.0
+  default_water_activity: 0.95
+  default_pv_cp: 20.0
+  default_yp_lb_100ft2: 15.0
+  mw_pp_min_overbalance: 0.2
+  ecd_fg_min_margin: 0.3
+  fg_margin_above_emw_max: 0.3
+  max_filter_cake_mm: 3.0
+  min_shale_inhibition: 0.6
+  approaching_margin_ppg: 0.3
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/fluids_agent.py"

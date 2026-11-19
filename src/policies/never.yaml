@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# Machine-readable prohibitions. These are non-goals, not preferences.
+# A build or review that removes an entry here requires an explicit decision.
+# ---------------------------------------------------------------------------
+schema: upstream-agents-plugin/policy/v1
+id: never
+
+prohibited_capabilities:
+  - id: no-actuation
+    detail: "No tool may write a setpoint, move a valve, or issue a control command."
+  - id: no-bop-or-choke
+    detail: "No tool may command or advise a BOP function or choke position as an action."
+  - id: no-shut-in-decision
+    detail: "Shut-in is a human decision. The pack escalates; it does not conclude."
+  - id: no-autonomous-execution
+    detail: "No auto-execute path exists outside the engine runtime, and none is exposed here."
+  - id: no-safety-verdict-from-prose
+    detail: >
+      Envelope, quality and veto verdicts must come from the advisory MCP tool. A skill
+      that reasons about them in prose without calling the tool is a defect.
+  - id: no-invented-numbers
+    detail: >
+      Every threshold in a contract is transcribed from the engine with file:line provenance.
+      A number without provenance fails the validator.
+
+degraded_mode:
+  when_advisory_mcp_unavailable:
+    - "State plainly that no deterministic verdict is available."
+    - "Continue to explain domain concepts and cite the source spec."
+    - "Do not compute MAASP, kill weight, ECD or risk scores unaided."

@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+
+# Upstream Agents Plugin — agent contract
+
+#
+
+# Thresholds are transcribed verbatim from the author's private reference
+
+# implementation, which is not distributed with this package. Do not edit a number
+
+# here: change the implementation and re-extract, so the value keeps a traceable
+
+# origin. Provenance table: docs/THRESHOLDS-TRACE.md
+
+# ---------------------------------------------------------------------------
+
+schema: upstream-agents-plugin/agent-contract/v1
+
+id: cementing-agent
+title: Cementing.py
+tier: 2
+tier_name: NPT
+
+summary: >
+  Cementing Agent. Tier-2 well-construction agent, active during Cementing: monitors real-time pump pressure, returns density, and displaced volume against the pre-job design.
+
+autonomy:
+  ceiling: advisory
+  note: "Auto-execution is possible at level >= 2 with confidence >= 0.85 in a controlling runtime; this package never executes."
+
+veto:
+  kind: none
+  note: "Ranked by tier for proposal precedence; holds no veto."
+
+inputs:
+  - channel: flow_rate
+    unit: gpm
+  - channel: return_density
+    unit: ppg
+  - channel: standpipe_pressure
+    unit: psi
+
+thresholds:
+  channeling_density_delta_ppg: 0.5
+  channeling_pressure_delta_frac: 0.1
+  pressure_alert_above_design_psi: 200.0
+  zia_pass: 0.7
+  zia_fail: 0.5
+  hole_diameter_in: 12.25
+  casing_od_in: 9.625
+  gpm_per_bbl_min: 42.0
+
+actions:
+  allowed: [alert, advisory]
+  forbidden: [parameter_change, bop_command, choke_command, shut_in]
+
+refusals:
+  - never_commands: "any rig setpoint, BOP function or choke position"
+  - never_estimates: "a quantity listed as compute-only; call the advisory tool instead"
+  - never_decides: "a safety-critical action that belongs to the Driller or Supervisor"
+  - when_unavailable: "state that no deterministic verdict is available; do not improvise"
+
+citations:
+  - "agents/cementing_agent.py"
