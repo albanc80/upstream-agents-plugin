@@ -95,8 +95,8 @@ live session. Register it once in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.advisory-core]
-command = 'C:\Users\<you>\AppData\Local\hermes\bin\uv.exe'
-args = ["run", "--quiet", "--script", 'E:\.codex\plugins\cache\upstream-agents-plugin\upstream-agents-plugin\0.3.0\servers\advisory_core\main.py']
+command = 'C:\Users\<you>\.local\bin\uv.exe'        # run `where uv` to find yours
+args = ["run", "--quiet", "--script", 'C:\Users\<you>\.codex\plugins\cache\upstream-agents-plugin\<version>\servers\advisory_core\main.py']
 
 [mcp_servers.advisory-core.env]
 UV_CACHE_DIR = 'C:\Users\<you>\AppData\Local\Codex\advisory-core\uv-cache'

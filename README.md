@@ -103,11 +103,12 @@ optimisation). The lower tier wins a conflict; safety outranks confidence.
 |---|---|---|
 | P0 | Manifest, two proof contracts, policies, provenance trace, validator | done |
 | P1 | All 17 contracts + 4 skills — installable package | done |
-| **P2** | `servers/advisory_core` deterministic MCP + `mcp.json` | **done** |
-| P3 | Install verification in Hermes and Codex | done for Hermes |
+| P2 | `servers/advisory_core` deterministic MCP + `mcp.json` | done |
+| P3 | Install verification in Hermes, Codex and Claude Code | done |
 | P4 | Remaining 6 skills | done |
-| P5 | Claude shim | done; OpenClaw / Copilot untested |
-| P6 | CI, docs, release | CI + docs done; no tagged release |
+| P5 | Claude shim + marketplace, so clients install from the repo | done; OpenClaw untested |
+| P6 | CI, docs, example, security policy | done |
+| **Release** | **release-ready, still private** | **[docs/PUBLIC-RELEASE.md](docs/PUBLIC-RELEASE.md)** |
 
 ## What is in the package
 
@@ -118,12 +119,14 @@ skills/              10 Agent Skills (SKILL.md + references)
 src/agents/          17 agent contracts: tier, veto, thresholds, citations
 src/policies/        safety envelope, veto matrix, never-do list, site defaults
 servers/advisory_core deterministic advisory spine — 11 MCP tools, 31 formulas
-tests/               engine parity + behaviour tests (30)
-docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE
+tests/               48 tests: engine parity, behaviour, README-claim guard
+examples/            gas-influx walkthrough — 18 asserted values, runs in CI
+docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE, PUBLIC-RELEASE
 tools/validate.py    manifest + contract + skill + provenance gate
 .claude-plugin/      Claude shim + marketplace.json (Codex reads it too)
-.github/workflows/   CI: validate, test, schema conformance
+.github/workflows/   CI: validate, tests, walkthrough, selftest, schema
 LICENSE · NOTICE     Apache-2.0 + engineering safety notice
+SECURITY.md          what to report, and how
 ```
 
 ## Advisory tools
