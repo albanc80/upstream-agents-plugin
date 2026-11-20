@@ -28,6 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mcp.server.mcpserver import MCPServer  # noqa: E402
+from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 
 from advisory_core import formulas, model  # noqa: E402
 from advisory_core.channel_specs import CHANNEL_SPECS  # noqa: E402
@@ -301,13 +302,19 @@ def well_control_assess(
     Inputs: pit gain (bbl), flow-out minus flow-in (gpm), gas (%), and the PWD Kalman
     residual (sigma). Never derive an alert level by eye — this tool owns the thresholds.
     It detects and escalates; the Driller decides shut-in.
+
+    An empty or all-zero payload is refused rather than fused: the signals default to 0.0,
+    so a mistyped argument name would otherwise read as a confident all-clear.
     """
-    return model.well_control_assess(
-        pit_gain_bbl=pit_gain_bbl,
-        flow_diff_gpm=flow_diff_gpm,
-        gas_units_pct=gas_units_pct,
-        pwd_residual_sigma=pwd_residual_sigma,
-    )
+    try:
+        return model.well_control_assess(
+            pit_gain_bbl=pit_gain_bbl,
+            flow_diff_gpm=flow_diff_gpm,
+            gas_units_pct=gas_units_pct,
+            pwd_residual_sigma=pwd_residual_sigma,
+        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()
