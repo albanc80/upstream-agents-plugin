@@ -453,7 +453,23 @@ def well_control_assess(
 
     Independent-signal fusion (Well Control Monitoring specification 5.2, Dempster-Shafer form): each signal is mapped
     to a mass, combined as 1 - prod(1 - m). Thresholds come from the packaged contract.
+
+    An empty payload is refused rather than fused. All four signals default to 0.0, so a caller that mistypes a
+    parameter name would otherwise receive a confident "Normal" on a well that is flowing.
     """
+    supplied = {
+        "pit_gain_bbl": pit_gain_bbl,
+        "flow_diff_gpm": flow_diff_gpm,
+        "gas_units_pct": gas_units_pct,
+        "pwd_residual_sigma": pwd_residual_sigma,
+    }
+    if not any(value != 0.0 for value in supplied.values()):
+        raise ValueError(
+            "well_control_assess needs at least one kick signal: pit_gain_bbl, flow_diff_gpm, "
+            "gas_units_pct or pwd_residual_sigma. All four were zero or absent. A well with no "
+            "readings is not evidence of a normal well, so no verdict is produced."
+        )
+
     th = well_control_thresholds()
     kp = th.get("kick_probability", _WC_DEFAULT["kick_probability"])
     pg = th.get("pit_gain", _WC_DEFAULT["pit_gain"])

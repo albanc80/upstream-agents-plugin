@@ -280,3 +280,20 @@ def test_well_control_losses_are_classified() -> None:
 def test_well_control_never_claims_actuation() -> None:
     out = model.well_control_assess(pit_gain_bbl=3.0)
     assert "Driller" in out["authority"]
+
+
+def test_well_control_refuses_an_empty_payload() -> None:
+    """A typo'd parameter name leaves every signal at its 0.0 default.
+
+    Fusing that would return a confident "Normal" on a well that is flowing, so the
+    function must refuse rather than answer.
+    """
+    with pytest.raises(ValueError, match="at least one kick signal"):
+        model.well_control_assess()
+
+
+def test_well_control_refuses_a_payload_of_only_zeros() -> None:
+    with pytest.raises(ValueError, match="at least one kick signal"):
+        model.well_control_assess(
+            pit_gain_bbl=0.0, flow_diff_gpm=0.0, gas_units_pct=0.0, pwd_residual_sigma=0.0
+        )
