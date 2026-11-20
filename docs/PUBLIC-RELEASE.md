@@ -1,107 +1,66 @@
 # Public release
 
-The package is **release-ready but still private**. Nothing in the working tree is unpublished:
-`main` and `origin/main` match, the tree is clean, and CI is green.
+**Status: public and released.** `v1.0.0` is tagged, the repository is live at
+`github.com/albanc80/upstream-agents-plugin`, and every install command in the docs works with no
+credential.
 
-This file is the checklist for flipping it, in order. Steps 1–2 are done; 3–7 are yours to run
-because they change ownership or visibility of a live repository.
+This file records what was verified, why it was safe to publish, and what remains optional.
 
-## Pre-flight — verified
+## What was done, in order
+
+| Step | Result |
+|---|---|
+| Ownership transferred to the public account | done - history and the `v1.0.0` tag survived |
+| Visibility flipped to public | done |
+| Repository URL updated in both manifests and all docs | done - `albanc80/upstream-agents-plugin` |
+| Commit identity rewritten | 8 commits, all `293514256+albanc80@users.noreply.github.com` |
+| Release tagged | `v1.0.0` annotated, matching `plugin.json` |
+| Metadata | description and 7 topics set |
+
+## Pre-flight, verified before publishing
 
 | Check | Result |
 |---|---|
-| Working tree clean, no unpushed commits | yes |
-| History rewritten to a GitHub noreply identity, no upstream-platform references | yes |
-| No credentials, tokens or API keys in tracked files or history | yes |
+| Tree clean, no unpushed commits | yes |
+| No upstream-platform references in history or files | yes |
+| No credentials, tokens or API keys | yes |
 | No absolute personal paths in docs (all `<you>` placeholders) | yes |
-| No personal email addresses in tracked files | yes |
-| Licence and notice present; `license: Apache-2.0` in both manifests | yes |
-| Manifest conforms to the published Agent Plugins v1 schema | CI step, green |
-| Tests, MCP walkthrough, server selftest | 48 / 18 / 5 checks, green |
-| `hermes plugins validate` security scan | safe |
-| No build artefacts, caches or runtime data tracked (`.data/` ignored) | yes |
+| No personal email reachable from any ref | yes - noreply identity only |
+| Apache-2.0 in both manifests, `LICENSE` + `NOTICE` present | yes |
+| Manifest conforms to the Agent Plugins v1 schema | CI step, green |
+| Tests / MCP walkthrough / install selftest | 48 / 18 / 5, green |
+| Security scan (`hermes plugins validate`) | safe |
+| No build artefacts, caches or runtime data tracked | yes |
 
-## 1. Transfer ownership
+## Known residual
 
-Transfer `ilbambinomx/upstream-agents-plugin` to your public account in **Settings → General →
-Danger Zone → Transfer**. History, issues and stars move with it; the old URL redirects.
+- **A history rewrite is not a guaranteed purge.** The commits were rewritten and force-pushed before
+  publication, so no reference reaches the old identity - but GitHub may retain orphaned objects by
+  direct SHA. If total removal matters, ask GitHub Support to garbage-collect, or squash to a fresh
+  commit.
+- **The transfer leaves a redirect.** GitHub redirects the previous owner's path to this repository,
+  which keeps existing clones working and also makes that previous path publicly discoverable. If
+  that association should not be visible, it is a GitHub Support request, not a repository change.
 
-## 2. Update the four files that hardcode the slug
+## Optional, not required
 
-After the transfer the old owner is wrong in eight places across four files:
-
-| File | What to change |
-|---|---|
-| `plugin.json` | `repository` |
-| `.claude-plugin/plugin.json` | `repository` |
-| `README.md` | two install commands and the install block |
-| `docs/INSTALL.md` | Hermes, Codex and Claude install commands |
-
-```bash
-grep -rl "ilbambinomx/upstream-agents-plugin" . --exclude-dir=.git
-```
-
-Then re-pin every local clone, because the `ghauth` identity was tied to the old owner:
-
-```bash
-cd <each local clone> && ghauth albanc80
-```
-
-## 3. Flip visibility
-
-```bash
-gh repo edit <public-account>/upstream-agents-plugin \
-  --visibility public \
-  --accept-visibility-change-consequences
-```
-
-## 4. Re-verify as an outsider
-
-The most important step, and the one that actually fails if anything is missed — clone with **no**
-credentials:
-
-```bash
-GIT_TERMINAL_PROMPT=0 git clone https://github.com/<public-account>/upstream-agents-plugin.git /tmp/pubcheck
-cd /tmp/pubcheck && uv run --script servers/advisory_core/main.py --selftest
-```
-
-Expect `selftest OK`. Then confirm each client installs from the public URL with no token, and that
-CI still runs green after the transfer (workflows survive, but permissions and secrets do not
-always).
-
-## 5. Repository metadata
-
-```bash
-gh repo edit <public-account>/upstream-agents-plugin \
-  --description "Upstream drilling and well-lifecycle advisory agents: 17 agent contracts, 10 skills and a deterministic advisory MCP. Advisory only — never actuates." \
-  --add-topic upstream,drilling,well-control,agent-skills,mcp,witsml,etp
-```
-
-## 6. Enable the security channel
-
-`SECURITY.md` points at GitHub private vulnerability reporting. Turn it on: **Settings → Code
-security → Private vulnerability reporting**. Without it the file points at nothing.
-
-## 7. Consider before flipping
-
-- ~~**Commit author email**~~ — done. All 8 commits rewritten to
-  `293514256+albanc80@users.noreply.github.com`; no other identity is reachable from any ref. Note
-  that a rewrite does not necessarily purge GitHub's orphaned objects, so if total removal matters
-  ask GitHub Support to garbage-collect, or squash to a single fresh commit.
-- ~~**Tag the release**~~ — done. `v1.0.0` is tagged and pushed, matching `plugin.json`.
-- **"Private reference implementation" phrasing** appears in `docs/THRESHOLDS-TRACE.md`,
-  `docs/BOUNDARIES.md`, and every contract header. It is honest and does not name anything, but it
-  does tell a reader an internal upstream exists. Keep or soften — your call.
-- **No marketplace submission.** The Claude and Codex marketplace files make the repo
-  self-installable; listing it in any directory is a separate review, and the icon/screenshot
-  warnings from `claude plugin validate` only matter then.
+- **Private vulnerability reporting** is referenced by `SECURITY.md` and must be enabled under
+  Settings -> Code security, or the file points at nothing.
+- **Tag protection** for `v*`, if the release pointer should not be movable.
+- **A CHANGELOG** - the README phase table and the annotated tag message currently carry that
+  history.
+- **Directory listing** in the Claude or Codex marketplace. The repo is self-installable without it;
+  listing adds icon and screenshot requirements that are deliberately absent.
+- **"Private reference implementation" phrasing** in `docs/THRESHOLDS-TRACE.md`,
+  `docs/BOUNDARIES.md` and every contract header. It names nothing and states the provenance rule a
+  reader needs to interpret the numbers; soften only if the existence of an internal upstream should
+  not be implied.
 
 ## Rollback
 
 ```bash
-gh repo edit <account>/upstream-agents-plugin --visibility private
+gh repo edit albanc80/upstream-agents-plugin --visibility private
 ```
 
-Visibility, topics and description are reversible. A transfer is reversible (the receiving account
-can transfer it back). Making it public is the only step with irreversible consequences: anyone may
-have cloned it, and a later privatisation does not un-publish what was already taken.
+Visibility, topics and description are reversible. Publication is the step with irreversible
+consequences: a clone taken while public cannot be un-published by later privatising.

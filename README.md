@@ -108,7 +108,7 @@ optimisation). The lower tier wins a conflict; safety outranks confidence.
 | P4 | Remaining 6 skills | done |
 | P5 | Claude shim + marketplace, so clients install from the repo | done; OpenClaw untested |
 | P6 | CI, docs, example, security policy | done |
-| **Release** | **release-ready, still private** | **[docs/PUBLIC-RELEASE.md](docs/PUBLIC-RELEASE.md)** |
+| **Release** | **public, `v1.0.0` tagged** | **[docs/PUBLIC-RELEASE.md](docs/PUBLIC-RELEASE.md)** |
 
 ## What is in the package
 
@@ -174,21 +174,21 @@ See [docs/INSTALL.md](docs/INSTALL.md). Verified against the real clients:
 
 ```bash
 # Hermes
-hermes plugins install ilbambinomx/upstream-agents-plugin && hermes plugins enable upstream-agents-plugin
+hermes plugins install albanc80/upstream-agents-plugin && hermes plugins enable upstream-agents-plugin
 
 # Codex — the repo declares itself as a marketplace (.claude-plugin/marketplace.json)
-codex plugin marketplace add ilbambinomx/upstream-agents-plugin
+codex plugin marketplace add albanc80/upstream-agents-plugin
 codex plugin add upstream-agents-plugin@upstream-agents-plugin
 
 # Claude Code
-/plugin install upstream-agents-plugin --marketplace ilbambinomx/upstream-agents-plugin
+/plugin install upstream-agents-plugin --marketplace albanc80/upstream-agents-plugin
 ```
 
 Or from a working copy, without installing: `hermes plugins install .`, `claude --plugin-dir .`.
 
-The repository is private: every command above needs a GitHub identity that can read it. The
-plugin's tools need [`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside
-the server script and resolved on first run.
+The repository is public: no token or GitHub identity is needed. The plugin's tools need
+[`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside the server script and
+resolved on first run — see [First run](docs/INSTALL.md).
 
 ## Try it
 

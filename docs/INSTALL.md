@@ -40,7 +40,7 @@ client still times out on its very first launch, raise its startup allowance (Co
 ## Hermes
 
 ```bash
-hermes plugins install ilbambinomx/upstream-agents-plugin    # private: add a token first
+hermes plugins install albanc80/upstream-agents-plugin
 hermes plugins enable upstream-agents-plugin
 ```
 
@@ -52,13 +52,13 @@ hermes plugins validate .          # from a clone
 hermes plugins show upstream-agents-plugin
 ```
 
-For a private repo, `hermes plugins install` needs a token. If the profile's `GITHUB_TOKEN` is
-stale it will report `Repository not found`; pass a token URL or sign in with `gh auth login`.
+The repository is public, so no token is needed. If the profile still holds a stale
+`GITHUB_TOKEN`, clear it — a bad credential fails with `Repository not found` even on a public repo.
 
 ## Codex
 
 ```bash
-codex plugin marketplace add ilbambinomx/upstream-agents-plugin
+codex plugin marketplace add albanc80/upstream-agents-plugin
 codex plugin add upstream-agents-plugin@upstream-agents-plugin
 ```
 
@@ -79,7 +79,7 @@ as a marketplace in `.claude-plugin/marketplace.json` (which also carries the re
 
 ```bash
 claude plugin validate .                                        # verified: passes
-claude plugin marketplace add ilbambinomx/upstream-agents-plugin
+claude plugin marketplace add albanc80/upstream-agents-plugin
 claude plugin install upstream-agents-plugin@upstream-agents-plugin
 claude --plugin-dir .                                           # or load a working copy without installing
 ```
