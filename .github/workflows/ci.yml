@@ -25,6 +25,18 @@ jobs:
       - name: Server selftest (install integrity)
         run: uv run --script servers/advisory_core/main.py --selftest
 
+      - name: CLI mode (harnesses without MCP)
+        run: |
+          uv run --script servers/advisory_core/main.py --call well_control_assess \
+            '{"pit_gain_bbl":4,"flow_diff_gpm":12,"gas_units_pct":3.5}' | grep -q '"alert_level": 4'
+          uv run --script servers/advisory_core/main.py --list-tools | grep -q well_control_assess
+          if uv run --script servers/advisory_core/main.py --call well_control_assess '{}' 2>/dev/null; then
+            echo "expected a refusal on an empty payload"; exit 1
+          fi
+          if uv run --script servers/advisory_core/main.py --call not_a_tool '{}' 2>/dev/null; then
+            echo "expected an error on an unknown tool"; exit 1
+          fi
+
       - name: plugin.json conforms to the published Agent Plugins v1 schema
         run: |
           curl -sS -o /tmp/plugin.schema.json https://agent-plugins.org/schemas/1.0.0/plugin.schema.json

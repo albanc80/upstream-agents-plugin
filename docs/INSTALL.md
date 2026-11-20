@@ -37,6 +37,18 @@ contracts, 10 skills, 31 formulas and the policy YAML — and exits non-zero if 
 client still times out on its very first launch, raise its startup allowance (Codex:
 `startup_timeout_sec` in `config.toml`).
 
+## No MCP? Call the engine directly
+
+If a client cannot spawn the server, or the registration is wrong, the same tools run from a shell:
+
+```bash
+uv run --script <plugin>/servers/advisory_core/main.py --list-tools
+uv run --script <plugin>/servers/advisory_core/main.py --call well_control_assess '{"pit_gain_bbl": 4}'
+```
+
+Same code path, same thresholds, same refusals; exit code 1 on a refusal, 2 on bad arguments or an
+unknown tool. This is also the fastest way to prove an install works before wiring a client.
+
 ## Hermes
 
 ```bash

@@ -58,4 +58,5 @@ alone, the answer is no.
 ## Degraded mode
 
 Without the advisory server, present the precedence table and the conflict explicitly, and
-state that the negotiation verdict was not computed.
+state that the negotiation verdict was not computed. First try the shell fallback in `upstream-ops`:
+`--call negotiate` returns the same JSON the tool would.

@@ -388,9 +388,66 @@ def selftest() -> int:
     return 1 if failed else 0
 
 
+_CLI_TOOLS: dict[str, Any] = {
+    "list_capabilities": list_capabilities,
+    "list_channels": list_channels,
+    "list_formulas": list_formulas,
+    "compute": compute,
+    "qse_score_sample": qse_score_sample,
+    "check_safety_envelope": check_safety_envelope,
+    "route_autonomy": route_autonomy,
+    "negotiate": negotiate,
+    "well_control_assess": well_control_assess,
+    "audit_append": audit_append,
+    "audit_trace": audit_trace,
+}
+
+
+def cli_call(tool: str, raw_args: str) -> int:
+    """Run one tool without an MCP client, printing the same JSON the tool returns.
+
+    An agent cannot obtain tools by starting a stdio MCP server itself — the process just
+    blocks waiting for JSON-RPC on stdin. This gives a harness that has a shell but no MCP
+    registration the same deterministic answer, through the same code path and the same
+    refusals, instead of a qualitative guess.
+    """
+    fn = _CLI_TOOLS.get(tool)
+    if fn is None:
+        print(json.dumps({"error": f"unknown tool: {tool}", "available": sorted(_CLI_TOOLS)}), file=sys.stderr)
+        return 2
+    try:
+        args = json.loads(raw_args) if raw_args.strip() else {}
+    except json.JSONDecodeError as exc:
+        print(json.dumps({"error": f"arguments are not valid JSON: {exc}"}), file=sys.stderr)
+        return 2
+    if not isinstance(args, dict):
+        print(json.dumps({"error": "arguments must be a JSON object"}), file=sys.stderr)
+        return 2
+    try:
+        result = fn(**args)
+    except ToolError as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+    except TypeError as exc:
+        accepted = list(inspect.signature(fn).parameters)
+        print(json.dumps({"error": f"bad arguments: {exc}", "accepted": accepted}), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 def main() -> None:
     if "--selftest" in sys.argv:
         raise SystemExit(selftest())
+    if "--list-tools" in sys.argv:
+        print(json.dumps(sorted(_CLI_TOOLS), indent=2))
+        return
+    if "--call" in sys.argv:
+        i = sys.argv.index("--call")
+        if len(sys.argv) <= i + 1:
+            print("usage: --call <tool> [json-args]", file=sys.stderr)
+            raise SystemExit(2)
+        raise SystemExit(cli_call(sys.argv[i + 1], sys.argv[i + 2] if len(sys.argv) > i + 2 else "{}"))
     mcp.run("stdio")
 
 

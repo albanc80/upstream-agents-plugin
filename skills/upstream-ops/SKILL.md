@@ -41,10 +41,22 @@ a BOP or choke, or decides a shut-in. That boundary is not negotiable in any ski
 5. **Record what matters.** `audit_append` any decision that changes a plan, a limit or a
    recommendation's standing.
 
-## When the advisory server is unavailable
+## When the advisory tools are not registered
 
-Say so in one sentence, then continue qualitatively — definitions, procedures, what to
-measure, who decides. Never substitute a remembered number for a tool result.
+Do not stop at "unavailable", and do not guess a number. The same engine runs from a shell —
+substitute the plugin root, the directory that holds `plugin.json`:
+
+```bash
+uv run --script <plugin>/servers/advisory_core/main.py --list-tools
+uv run --script <plugin>/servers/advisory_core/main.py --call well_control_assess \
+  '{"pit_gain_bbl": 4, "flow_diff_gpm": 12, "gas_units_pct": 3.5}'
+```
+
+It prints the same JSON the MCP tool returns and refuses the same bad input, so the value is
+deterministic rather than remembered. Doing this is cheaper than a detour through the UI.
+
+Only if that command fails — no `uv`, no Python, no filesystem access — answer qualitatively,
+say that no deterministic verdict was produced, and state what the rig team must verify.
 
 ## Failure modes to refuse
 

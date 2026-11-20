@@ -46,4 +46,5 @@ Six checks produce that score:
 ## Degraded mode
 
 Without the advisory server, apply the checks qualitatively and label the result an inspection,
-not a score. Never emit a number between 0 and 1 that you did not receive from the tool.
+not a score. First try the shell fallback in `upstream-ops`: `--call qse_score_sample` returns the
+same JSON the tool would. Never emit a number between 0 and 1 that you did not receive from the tool.

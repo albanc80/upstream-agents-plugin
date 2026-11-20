@@ -190,6 +190,21 @@ The repository is public: no token or GitHub identity is needed. The plugin's to
 [`uv`](https://docs.astral.sh/uv/) on `PATH`; dependencies are declared inside the server script and
 resolved on first run — see [First run](docs/INSTALL.md).
 
+## Harnesses without MCP registration
+
+The tools are also callable from a shell, through the same engine and the same refusals. Useful
+where MCP is unavailable, misconfigured, or hosted in a surface that cannot spawn a process:
+
+```bash
+uv run --script servers/advisory_core/main.py --list-tools
+uv run --script servers/advisory_core/main.py --call well_control_assess \
+  '{"pit_gain_bbl": 4, "flow_diff_gpm": 12, "gas_units_pct": 3.5}'
+```
+
+It prints the JSON the MCP tool would return, and exits non-zero on a refusal or bad arguments
+rather than answering anyway. The skills use this path before falling back to prose, so an agent
+without a working MCP connection still gets deterministic values instead of an estimate.
+
 ## Try it
 
 [`examples/`](examples/) holds one worked scenario — a gas influx on a 12¼ in section while the

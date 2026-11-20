@@ -21,7 +21,7 @@ indicators are live.
 2. **No shut-in decision.** Shut-in belongs to the Driller and the Drilling Supervisor.
    Present the indicators, name who decides, stop there.
 3. **No arithmetic.** MAASP, kill-mud weight, ICP and FCP come from `compute`, never from you.
-   If the advisory server is not connected, say the number cannot be produced here.
+   If the advisory server is not connected, run the shell fallback in `upstream-ops` (`--call well_control_assess`); only if that fails, say the number cannot be produced here.
 4. **No verdict on stale data.** If channel quality is below the floor, no verdict exists.
 
 ## Procedure
@@ -48,7 +48,7 @@ indicators are live.
 
 ## Degraded mode
 
-Without the advisory server you may explain concepts, name indicators and cite the spec. You
+Without the advisory server you may still run the shell fallback in `upstream-ops` to get the deterministic verdict. If even that is impossible, explain concepts, name indicators and cite the spec. You
 may not produce a probability, a level, an MAASP, a kill weight or a margin.
 
 See `references/kill-sheet.md` for the quantity definitions and what each one needs.

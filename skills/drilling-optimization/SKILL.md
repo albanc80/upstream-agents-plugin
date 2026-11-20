@@ -35,4 +35,5 @@ that trades a dysfunction for a rate is a loss.
 ## Degraded mode
 
 Without the advisory server, discuss the physics and the decision logic, and say plainly that
-MSE and the founder point were not computed. Never quote an MSE value you did not receive.
+MSE and the founder point were not computed. First try the shell fallback in `upstream-ops`:
+`--call compute` returns the same value the tool would. Never quote an MSE you did not receive.
