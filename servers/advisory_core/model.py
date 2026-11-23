@@ -205,6 +205,32 @@ _PARAM_CHANNEL = {
     "standpipe_pressure": "standpipe_pressure",
 }
 
+_CHANNEL_TO_PARAM = {channel: param for param, channel in _PARAM_CHANNEL.items()}
+_LIMIT_KEYS = frozenset({"wob", "rpm", "standpipe_pressure", "torque", "ecd", "dls_per_100ft"})
+_UNIT_SUFFIXES = ("_klbs", "_klbf", "_ppg", "_gpm", "_psi", "_ft_lbs", "_ft_lbf")
+
+
+def canonical_parameter(name: str) -> str | None:
+    """Resolve a proposed parameter to the key its limit is defined under.
+
+    A safety gate that silently ignores a parameter it cannot name is worse than no gate: the
+    channel id (weight_on_bit) and the unit-suffixed form (wob_klbf) must each reach the same
+    limit as the bare parameter name.
+    """
+    key = name.strip().lower().replace(" ", "_")
+    if key in _LIMIT_KEYS:
+        return key
+    if key in _CHANNEL_TO_PARAM:
+        return _CHANNEL_TO_PARAM[key]
+    for suffix in _UNIT_SUFFIXES:
+        if key.endswith(suffix):
+            base = key[: -len(suffix)]
+            if base in _LIMIT_KEYS:
+                return base
+            if base in _CHANNEL_TO_PARAM:
+                return _CHANNEL_TO_PARAM[base]
+    return None
+
 
 def check_envelope(
     parameters: dict[str, float],
@@ -229,6 +255,18 @@ def check_envelope(
     prob = limits.get("probabilistic", {})
     quality = quality or {}
 
+    # Normalise every proposed parameter name before any limit is compared, and keep track of what
+    # could not be resolved: an unevaluable control parameter must not be certified as safe.
+    resolved: dict[str, float] = {}
+    unverified: list[str] = []
+    for raw_name, raw_value in parameters.items():
+        key = canonical_parameter(raw_name)
+        if key is None:
+            unverified.append(str(raw_name))
+        else:
+            resolved[key] = float(raw_value)
+    parameters = resolved
+
     violations: list[str] = []
     hard = False
 
@@ -242,6 +280,7 @@ def check_envelope(
             "passed": not violations,
             "violations": violations,
             "hard_violation": False,
+            "unverified_parameters": unverified,
             "site_validated": envelope_site_validated(),
         }
 
@@ -292,10 +331,17 @@ def check_envelope(
                 f"data quality for {key} ({sample_quality:.2f}) < floor {min_quality:.2f}"
             )
 
+    if unverified:
+        violations.append(
+            "cannot evaluate " + ", ".join(sorted(unverified)) + ": no limit is defined for these "
+            "parameter names, so the change is not certified"
+        )
+
     return {
         "passed": not violations,
         "violations": violations,
         "hard_violation": hard,
+        "unverified_parameters": unverified,
         "site_validated": envelope_site_validated(),
     }
 
@@ -470,17 +516,26 @@ def well_control_assess(
             "readings is not evidence of a normal well, so no verdict is produced."
         )
 
+    if not 0.0 <= gas_units_pct <= 100.0:
+        raise ValueError(
+            f"gas_units_pct {gas_units_pct} is not a physical reading: gas is a percentage of the "
+            "return flow and must lie in [0, 100]. Refusing rather than scoring an impossible sample."
+        )
+
     th = well_control_thresholds()
     kp = th.get("kick_probability", _WC_DEFAULT["kick_probability"])
     pg = th.get("pit_gain", _WC_DEFAULT["pit_gain"])
     background = float(th.get("background_gas_pct", 0.5))
 
-    m1 = min(pwd_residual_sigma / 3.0 * 0.90, 0.90)
-    m2 = min(pit_gain_bbl / 5.0 * 0.95, 0.95)
-    m3_gas = min(gas_units_pct / (5.0 * background) * 0.70, 0.70)
-    m3_flow = min(max(0.0, flow_diff_gpm) / 10.0 * 0.80, 0.80)
+    # Each mass is a probability of "this signal is present", so it is floored at 0. Negative
+    # signals (a loss, or flow-in exceeding flow-out) carry no gain mass; they are handled as
+    # losses below. Without the floor a loss produced a negative probability.
+    m1 = min(max(pwd_residual_sigma / 3.0 * 0.90, 0.0), 0.90)
+    m2 = min(max(pit_gain_bbl / 5.0 * 0.95, 0.0), 0.95)
+    m3_gas = min(max(gas_units_pct / (5.0 * background) * 0.70, 0.0), 0.70)
+    m3_flow = min(max(flow_diff_gpm, 0.0) / 10.0 * 0.80, 0.80)
     m3 = max(m3_gas, m3_flow)
-    probability = 1.0 - (1.0 - m1) * (1.0 - m2) * (1.0 - m3)
+    probability = min(max(1.0 - (1.0 - m1) * (1.0 - m2) * (1.0 - m3), 0.0), 1.0)
 
     if probability >= float(kp["emergency"]) or pit_gain_bbl > float(pg["emergency_bbl"]):
         level = 4
@@ -493,12 +548,39 @@ def well_control_assess(
     else:
         level = 0
 
+    # Losses: the packaged contract has no loss threshold, so rather than certify "Normal" the
+    # advisory is raised to at least the Advisory level and the gap is reported. Inventing a
+    # losses threshold from the gain thresholds would be a fabricated number.
+    losses = pit_gain_bbl < 0.0 or flow_diff_gpm < 0.0
+    escalated_for_losses = False
+    if losses and level < 2:
+        level = 2
+        escalated_for_losses = True
+
     if pit_gain_bbl > 0.5 and flow_diff_gpm > 0:
         classification = "GAS_KICK" if gas_units_pct > background else "WATER_KICK"
     elif flow_diff_gpm < -5.0 or pit_gain_bbl < -1.0:
         classification = "LOST_CIRCULATION"
     else:
         classification = "NORMAL"
+
+    # Invariant: an escalation is never labelled Normal. Gas with no flow or pit evidence is a
+    # gas influx that the supplied channels cannot confirm, not a normal well.
+    if level >= 3 and classification == "NORMAL":
+        classification = "GAS_KICK" if gas_units_pct > background else "UNCONFIRMED_INFLUX"
+
+    result_notes: list[str] = []
+    if escalated_for_losses:
+        result_notes.append(
+            "Losses detected (pit gain or flow differential negative). The packaged contract defines "
+            "no loss threshold, so this is escalated to the Advisory level instead of being reported "
+            "as normal. Treat as lost circulation and verify against the drilling programme."
+        )
+    if level >= 3 and classification == "UNCONFIRMED_INFLUX":
+        result_notes.append(
+            "Escalation came from gas alone; no flow differential or pit gain was supplied to "
+            "confirm an influx."
+        )
 
     return {
         "kick_probability": round(probability, 4),
@@ -512,6 +594,8 @@ def well_control_assess(
             "confidence level or an ML score."
         ),
         "regulatory_notification_required": level >= 3,
+        "losses_detected": losses,
+        "notes": result_notes,
         "authority": "The Driller and Drilling Supervisor decide shut-in. This tool detects and escalates.",
         "thresholds_used": {
             "monitor": kp["monitor"], "advisory": kp["advisory"],

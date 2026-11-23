@@ -297,3 +297,59 @@ def test_well_control_refuses_a_payload_of_only_zeros() -> None:
         model.well_control_assess(
             pit_gain_bbl=0.0, flow_diff_gpm=0.0, gas_units_pct=0.0, pwd_residual_sigma=0.0
         )
+
+
+# --- regressions from the external audit (1.1.2) --------------------------
+
+
+def test_well_control_losses_are_never_normal() -> None:
+    """A loss is a lost-circulation event. It must not report Normal, and the probability of a
+    gain cannot go negative because a signal is absent."""
+    out = model.well_control_assess(pit_gain_bbl=-8.0)
+    assert out["alert_level"] >= 2
+    assert out["alert_name"] != "Normal"
+    assert out["classification"] == "LOST_CIRCULATION"
+    assert out["kick_probability"] >= 0.0
+    assert out["losses_detected"] is True
+
+
+def test_well_control_refuses_an_impossible_gas_reading() -> None:
+    with pytest.raises(ValueError, match="not a physical reading"):
+        model.well_control_assess(gas_units_pct=250.0)
+
+
+def test_well_control_escalation_is_never_classified_normal() -> None:
+    out = model.well_control_assess(gas_units_pct=4.0)
+    assert out["alert_level"] >= 3
+    assert out["classification"] != "NORMAL"
+
+
+def test_envelope_resolves_the_channel_name() -> None:
+    """weight_on_bit is the channel id; wob is the parameter name. Both reach the same limit."""
+    for naming in ({"weight_on_bit": 250.0}, {"wob": 250.0}, {"wob_klbf": 250.0}):
+        out = model.check_envelope(naming)
+        assert out["passed"] is False, naming
+        assert out["hard_violation"] is True, naming
+
+
+def test_envelope_refuses_a_parameter_it_cannot_evaluate() -> None:
+    out = model.check_envelope({"bit_size_in": 12.25})
+    assert out["passed"] is False
+    assert out["unverified_parameters"] == ["bit_size_in"]
+    assert any("cannot evaluate" in v for v in out["violations"])
+
+
+def test_envelope_still_passes_a_safe_change_by_channel_name() -> None:
+    out = model.check_envelope({"weight_on_bit": 38.0, "rpm": 150.0})
+    assert out["passed"] is True
+    assert out["unverified_parameters"] == []
+
+
+def test_kill_mud_weight_requires_a_positive_tvd() -> None:
+    with pytest.raises(ValueError, match="positive true vertical depth"):
+        pm.kill_mud_weight_ppg(12.0, 260.0, 0.0)
+
+
+def test_ecd_requires_a_positive_tvd() -> None:
+    with pytest.raises(ValueError, match="positive TVD"):
+        pm.equivalent_circulating_density_ppg(10.3, 250.0, 0.0)

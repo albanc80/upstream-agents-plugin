@@ -198,7 +198,12 @@ def compute(formula: str, arguments: dict[str, float]) -> dict[str, Any]:
             f"unknown formula {formula!r}; call list_formulas() for the {len(FORMULAS)} available"
         )
     clean = {k: float(v) for k, v in (arguments or {}).items()}
-    result = fn(**clean)
+    try:
+        result = fn(**clean)
+    except ValueError as exc:
+        # A formula that refuses its inputs (an impossible depth, say) must reach the client as a
+        # readable refusal, not a traceback.
+        raise ToolError(f"{formula}: {exc}") from exc
     if hasattr(result, "__dict__"):
         result = dict(result.__dict__)
     elif isinstance(result, tuple):

@@ -47,9 +47,15 @@ def buoyancy_factor(mud_weight_ppg: float) -> float:
 def equivalent_circulating_density_ppg(
     mud_weight_ppg: float, annular_pressure_loss_psi: float, tvd_ft: float
 ) -> float:
-    """ECD = APL / (TVD x 0.052) + MW. Returns MW for non-positive TVD."""
+    """ECD = APL / (TVD x 0.052) + MW.
+
+    A non-positive TVD has no annulus to report on; returning the mud weight would present a
+    static value as a circulating density, so this raises instead.
+    """
     if tvd_ft <= 0:
-        return mud_weight_ppg
+        raise ValueError(
+            f"equivalent circulating density needs a positive TVD; got tvd_ft={tvd_ft}"
+        )
     return annular_pressure_loss_psi / (tvd_ft * PRESSURE_GRADIENT_CONSTANT) + mud_weight_ppg
 
 
@@ -62,9 +68,16 @@ def maasp_psi(max_mud_weight_ppg: float, current_mud_weight_ppg: float, shoe_tvd
 
 
 def kill_mud_weight_ppg(current_mud_weight_ppg: float, sidpp_psi: float, tvd_ft: float) -> float:
-    """Required kill mud weight W2 = W1 + SIDPP / (TVD x 0.052)."""
+    """Required kill mud weight W2 = W1 + SIDPP / (TVD x 0.052).
+
+    A non-positive TVD has no defined answer; returning the current mud weight would read as a
+    valid kill weight, so this raises instead.
+    """
     if tvd_ft <= 0:
-        return current_mud_weight_ppg
+        raise ValueError(
+            f"kill mud weight needs a positive true vertical depth; got tvd_ft={tvd_ft}. "
+            "Returning the current mud weight would be indistinguishable from a real kill weight."
+        )
     return current_mud_weight_ppg + sidpp_psi / (tvd_ft * PRESSURE_GRADIENT_CONSTANT)
 
 
