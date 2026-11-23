@@ -37,6 +37,16 @@ contracts, 10 skills, 31 formulas and the policy YAML — and exits non-zero if 
 client still times out on its very first launch, raise its startup allowance (Codex:
 `startup_timeout_sec` in `config.toml`).
 
+## Where the audit trail lives
+
+Not in the plugin folder — that is replaced on every update. The server resolves, in order:
+`ADVISORY_DATA_DIR`, then `PLUGIN_DATA`, then `CLAUDE_PLUGIN_DATA`, and otherwise a per-user
+location (`%LOCALAPPDATA%\upstream-agents-plugin` on Windows,
+`$XDG_DATA_HOME/upstream-agents-plugin` elsewhere). `audit_trace` reports the resolved
+`audit_path` and `survives_update`, so the answer is inspectable rather than assumed. An existing
+trail left in the old in-plugin `.data/` folder is copied forward on first use, so the hash chain
+continues instead of restarting.
+
 ## No MCP? Call the engine directly
 
 If a client cannot spawn the server, or the registration is wrong, the same tools run from a shell:

@@ -3,18 +3,12 @@
   "owner": {
     "name": "Alberto Ancona"
   },
-  "interface": {
-    "displayName": "Upstream Agents Plugin"
-  },
+  "description": "Upstream drilling and well-lifecycle advisory agents - 17 agent contracts, 10 skills and a deterministic advisory MCP. Advisory only: nothing here commands a rig, a BOP or a choke.",
   "plugins": [
     {
       "name": "upstream-agents-plugin",
       "source": "./",
-      "category": "engineering",
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      }
+      "category": "engineering"
     }
   ]
 }

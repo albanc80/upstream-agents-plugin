@@ -37,6 +37,15 @@ jobs:
             echo "expected an error on an unknown tool"; exit 1
           fi
 
+      - name: Audit trail survives an update
+        run: |
+          # The trail must not be written inside the install folder, which is replaced on upgrade.
+          uv run --script servers/advisory_core/main.py --call audit_trace '{"limit":1}' \
+            | grep -q '"survives_update": true'
+          TMP="$(mktemp -d)"
+          ADVISORY_DATA_DIR="$TMP" uv run --script servers/advisory_core/main.py \
+            --call audit_append '{"entry":{"probe":"ci"}}' | grep -q "$TMP"
+
       - name: plugin.json conforms to the published Agent Plugins v1 schema
         run: |
           curl -sS -o /tmp/plugin.schema.json https://agent-plugins.org/schemas/1.0.0/plugin.schema.json

@@ -88,14 +88,50 @@ FORMULAS: dict[str, Any] = {
 }
 
 
+def _resolve_data_dir() -> tuple[Path, bool]:
+    """Pick a directory that survives a plugin update.
+
+    The install folder is replaced on upgrade, so anything written inside it — including the
+    hash-chained audit trail — is lost exactly when it is worth having. Prefer the data directory
+    the client provides; otherwise use a per-user location. Returns (path, is_volatile).
+    """
+    for var in ("ADVISORY_DATA_DIR", "PLUGIN_DATA", "CLAUDE_PLUGIN_DATA"):
+        value = os.environ.get(var)
+        if value:
+            return Path(value), False
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    else:
+        base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "upstream-agents-plugin", False
+
+
+def _migrate_legacy_audit(target_dir: Path) -> None:
+    """Carry an existing trail forward from the old in-plugin location rather than abandoning it."""
+    legacy = model.plugin_root() / ".data" / "audit.jsonl"
+    target = target_dir / "audit.jsonl"
+    try:
+        if legacy.exists() and not target.exists() and legacy.parent != target_dir:
+            target.write_bytes(legacy.read_bytes())
+    except OSError:
+        pass
+
+
 def _data_dir() -> Path:
-    root = Path(os.environ.get("PLUGIN_DATA") or (model.plugin_root() / ".data"))
+    root, _ = _resolve_data_dir()
     root.mkdir(parents=True, exist_ok=True)
+    _migrate_legacy_audit(root)
     return root
 
 
 def _audit_path() -> Path:
     return _data_dir() / "audit.jsonl"
+
+
+def _audit_location() -> dict[str, Any]:
+    """Report where the trail lives, so a caller can tell that it is not inside the install folder."""
+    path = _audit_path()
+    return {"audit_path": str(path), "survives_update": ".data" not in str(path.parent)}
 
 
 def _last_hash() -> str:
@@ -348,12 +384,12 @@ def audit_trace(limit: int = 20) -> dict[str, Any]:
     """Read the most recent audit entries, oldest first."""
     path = _audit_path()
     if not path.exists():
-        return {"entries": [], "path": str(path)}
+        return {"entries": [], **_audit_location()}
     lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     return {
+        **_audit_location(),
         "entries": [json.loads(ln) for ln in lines[-max(1, limit):]],
         "total": len(lines),
-        "path": str(path),
     }
 
 
