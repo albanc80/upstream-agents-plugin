@@ -119,7 +119,7 @@ skills/              10 Agent Skills (SKILL.md + references)
 src/agents/          17 agent contracts: tier, veto, thresholds, citations
 src/policies/        safety envelope, veto matrix, never-do list, site defaults
 servers/advisory_core deterministic advisory spine — 11 MCP tools, 31 formulas
-tests/               58 tests: engine parity, behaviour, audit regressions, claim guard
+tests/               64 tests: parity, behaviour, audit regressions, claim guard
 examples/            gas-influx walkthrough — 18 asserted values, runs in CI
 docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE, PUBLIC-RELEASE
 tools/validate.py    manifest + contract + skill + provenance gate
@@ -222,7 +222,7 @@ pasting into Hermes, Codex or Claude, and the anti-patterns that mean a client i
 
 ```bash
 python tools/validate.py                                         # expect PASS 0 failures
-uv run --with pytest --with pyyaml -- python -m pytest tests -q   # expect 58 passed
+uv run --with pytest --with pyyaml -- python -m pytest tests -q   # expect 64 passed
 uv run --script servers/advisory_core/main.py --selftest         # expect 5 [OK] lines
 hermes plugins validate .                                        # portable v1 accepted
 ```

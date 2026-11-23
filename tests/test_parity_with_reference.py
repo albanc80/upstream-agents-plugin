@@ -353,3 +353,45 @@ def test_kill_mud_weight_requires_a_positive_tvd() -> None:
 def test_ecd_requires_a_positive_tvd() -> None:
     with pytest.raises(ValueError, match="positive TVD"):
         pm.equivalent_circulating_density_ppg(10.3, 250.0, 0.0)
+
+
+# --- regressions from the second audit pass (1.1.4) -----------------------
+
+
+def test_negotiation_refuses_an_unmatched_veto() -> None:
+    """A veto pointed at the wrong id is dropped and its target wins unopposed."""
+    proposals = [_p("drilling-optimization-agent", 4, 0.95, wob=38.0)]
+    vetoes = [{"by_agent": "stuck-pipe-prevention-agent", "priority_tier": 1,
+               "target_proposal_id": "typo-id", "reason": "drag"}]
+    with pytest.raises(ValueError, match="target_proposal_id not found"):
+        model.negotiate(proposals, vetoes)
+
+
+def test_negotiation_refuses_out_of_range_tier() -> None:
+    for tier in (0, 5, 99):
+        with pytest.raises(ValueError, match="priority_tier"):
+            model.negotiate([_p("a", tier, 0.9)], [])
+
+
+def test_negotiation_refuses_out_of_range_confidence() -> None:
+    for confidence in (-1.0, 5.0):
+        with pytest.raises(ValueError, match="confidence"):
+            model.negotiate([_p("a", 4, confidence)], [])
+
+
+def test_route_refuses_an_impossible_autonomy_level() -> None:
+    for level in (-3, 0, 6, 99):
+        with pytest.raises(ValueError, match="autonomy level"):
+            model.route(level, 0.99)
+
+
+def test_route_refuses_an_impossible_confidence() -> None:
+    for confidence in (-0.5, 7.0):
+        with pytest.raises(ValueError, match="confidence"):
+            model.route(2, confidence)
+
+
+def test_route_never_claims_execution() -> None:
+    out = model.route(2, 0.9)
+    assert out["routing"] == "auto_execute"
+    assert out["pack_executes"] is False

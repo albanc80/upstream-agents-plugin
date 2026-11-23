@@ -352,6 +352,11 @@ def check_envelope(
 def route(level: int, confidence: float) -> dict[str, Any]:
     """Combine autonomy level with confidence. Mirrors the reference implementation's route(), except that this
     package exposes no execution path at all — the routing is reported, never applied."""
+    if not 1 <= int(level) <= 5:
+        raise ValueError(f"autonomy level must be 1..5; got {level}")
+    if not 0.0 <= float(confidence) <= 1.0:
+        raise ValueError(f"confidence must be 0..1; got {confidence}")
+
     th = routing_thresholds()
     auto = float(th.get("auto_execute", 0.85))
     confirm = float(th.get("human_confirm", 0.70))
@@ -400,9 +405,36 @@ def negotiate(
     then confidence. Outcomes: CONSENSUS, SAFETY_VETO, DEADLOCK, TIMEOUT.
     """
     vetoes = vetoes or []
+
+    # Tier and confidence are ordinal: a tier outside 1..4 or a confidence outside 0..1 does not
+    # mean "unusual", it means the caller and the contract disagree about the scale.
+    for label, item in [("proposal", p) for p in proposals] + [("veto", v) for v in vetoes]:
+        tier = int(item.get("priority_tier", 4))
+        if not 1 <= tier <= 4:
+            raise ValueError(
+                f"{label} priority_tier {tier} is outside 1..4 (1 = safety, 4 = optimisation)"
+            )
+        confidence = float(item.get("confidence", 0.0))
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"{label} confidence {confidence} is outside 0..1")
+
     contenders = [p for p in proposals if p.get("action_type", "parameter_change") == "parameter_change"]
 
     by_id = {p.get("proposal_id", f"p{i}"): p for i, p in enumerate(contenders)}
+
+    # A veto aimed at an id that does not exist is silently dropped, and the proposal it was meant
+    # to block then wins unopposed. Refuse instead of certifying that consensus.
+    unmatched = [
+        v.get("target_proposal_id") for v in vetoes
+        if v.get("target_proposal_id") not in by_id
+    ]
+    if unmatched:
+        raise ValueError(
+            "veto target_proposal_id not found in the proposals: "
+            + ", ".join(repr(u) for u in unmatched)
+            + f" (known ids: {sorted(by_id)}). A veto that cannot be matched is ignored and the "
+            "proposal it targets would win, so the round is refused rather than resolved."
+        )
     rejections: list[dict[str, Any]] = []
     safety_veto = False
 

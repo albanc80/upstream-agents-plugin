@@ -312,7 +312,10 @@ def route_autonomy(level: int, confidence: float) -> dict[str, Any]:
     This pack exposes no execution path: an auto_execute result means a human could approve
     the change, never that anything ran.
     """
-    return model.route(level, confidence)
+    try:
+        return model.route(level, confidence)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()
@@ -328,7 +331,10 @@ def negotiate(
     by_agent, priority_tier, target_proposal_id, reason, suggested_parameters. Returns the
     winner, every rejection, generated alternatives and the outcome.
     """
-    return model.negotiate(proposals, vetoes, window_ms=window_ms, elapsed_ms=elapsed_ms)
+    try:
+        return model.negotiate(proposals, vetoes, window_ms=window_ms, elapsed_ms=elapsed_ms)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()
