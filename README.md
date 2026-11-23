@@ -121,7 +121,7 @@ src/policies/        safety envelope, veto matrix, never-do list, site defaults
 servers/advisory_core deterministic advisory spine — 11 MCP tools, 31 formulas
 tests/               64 tests: parity, behaviour, audit regressions, claim guard
 examples/            gas-influx walkthrough — 18 asserted values, runs in CI
-docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE, PUBLIC-RELEASE
+docs/                INSTALL, BOUNDARIES, THRESHOLDS-TRACE, REVIEW-BRIEF
 tools/validate.py    manifest + contract + skill + provenance gate
 .claude-plugin/      Claude shim + marketplace.json (Codex reads it too)
 .github/workflows/   CI: validate, tests, walkthrough, selftest, schema
@@ -231,7 +231,8 @@ hermes plugins validate .                                        # portable v1 a
 
 1. [docs/BOUNDARIES.md](docs/BOUNDARIES.md) — what this refuses to do, and the model gaps.
 2. [docs/THRESHOLDS-TRACE.md](docs/THRESHOLDS-TRACE.md) — every number and its source line.
-3. `src/agents/*.yaml` — the contracts, including `known_gaps` per agent.
+3. [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) — what a drilling reviewer should check in the numbers, and what to ignore.
+4. `src/agents/*.yaml` — the contracts, including `known_gaps` per agent.
 
 ## Contract rules
 
