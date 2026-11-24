@@ -10,8 +10,12 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          # No uv.lock is committed (the server resolves deps from a script header), so a dependency
+          # glob could never invalidate the cache. Off rather than silently stale.
+          enable-cache: false
 
       - name: Manifest, contracts, skills, provenance
         run: uv run --quiet --with pyyaml -- python tools/validate.py
@@ -57,9 +61,11 @@ jobs:
           uv run --script $S --call well_control_assess '{"gas_units_pct":5.0}' | grep -q '"alert_level": 2'
           # trace gas on a loss must not raise Emergency
           uv run --script $S --call well_control_assess '{"pit_gain_bbl":-3,"gas_units_pct":0.8}' | grep -q '"alert_level": 2'
-          # a misspelled argument is refused, not silently dropped
-          if uv run --script $S --call well_control_assess '{"flow_check_positive":true}' 2>&1 | grep -q '"alert_level"'; then
-            echo "unknown argument was silently accepted"; exit 1
+          # flow_check_positive is a supported alias for flow_check_pumps_off
+          uv run --script $S --call well_control_assess '{"flow_check_positive":true}' | grep -q '"alert_level": 4'
+          # a call whose every signal name is wrong yields an error, not a quiet well
+          if uv run --script $S --call well_control_assess '{"flow_check_typo":true}' 2>&1 | grep -q '"alert_level"'; then
+            echo "a fully misspelt call returned a verdict"; exit 1
           fi
 
       - name: Audit trail survives an update
