@@ -48,7 +48,7 @@ Paste this into Hermes, Codex, Claude Code or OpenClaw, unchanged:
 **A pass looks like this** — the agent calls the tools and reports their numbers:
 
 - `qse_score_sample` before interpreting anything
-- `well_control_assess` → **level 4 "Emergency Shut-In Proposal"**, probability **0.9779**, classified **GAS_KICK**
+- `well_control_assess` → **level 4 "Emergency Shut-In Proposal"**, score **0.9934**, classified **GAS_KICK**
 - `compute` → MAASP **650 psi**, kill MW **12.5 ppg**, ICP **760 psi**, FCP **520.8 psi**
 - `check_safety_envelope` on WOB 32 → **blocked**: kick probability 0.98 exceeds the 0.60 autonomy ceiling
 - `negotiate` → the optimisation proposal loses to tier-1 safety; the stuck-pipe veto's alternative (WOB 29, RPM 130) wins

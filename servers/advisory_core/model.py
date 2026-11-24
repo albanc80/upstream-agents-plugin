@@ -201,11 +201,11 @@ def score_sample(
         "channel": channel,
         "unit": spec.unit,
         "quality_score": round(quality, 4),
-        "flags": flags or ["OK"],
+        "flags": flags or (["OK"] if quality >= act_floor else ["BELOW_FLOOR"]),
         "ground_truth": ground_truth,
         # A perfect score from checks that never ran is not a clean bill of health: with no
         # history there is nothing to compare against, so the sample is not certifiable.
-        "is_actionable": quality > act_floor and not unverified_checks,
+        "is_actionable": quality >= act_floor and not unverified_checks,
         "unverified_checks": unverified_checks,
         "act_floor": act_floor,
         "expected_samples": expected,
@@ -227,7 +227,7 @@ _PARAM_CHANNEL = {
 
 _CHANNEL_TO_PARAM = {channel: param for param, channel in _PARAM_CHANNEL.items()}
 _LIMIT_KEYS = frozenset(
-    {"wob", "rpm", "standpipe_pressure", "torque", "ecd", "dls_per_100ft", "flow_rate"}
+    {"wob", "rpm", "standpipe_pressure", "torque", "ecd", "dls_per_100ft", "flow_rate", "mud_weight"}
 )
 _UNIT_SUFFIXES = ("_klbs", "_klbf", "_ppg", "_gpm", "_psi", "_ft_lbs", "_ft_lbf")
 
@@ -240,6 +240,8 @@ def canonical_parameter(name: str) -> str | None:
     limit as the bare parameter name.
     """
     key = name.strip().lower().replace(" ", "_")
+    if key in ("mud_weight_ppg", "mw", "mw_ppg"):
+        return "mud_weight"
     if key in _LIMIT_KEYS:
         return key
     if key in _CHANNEL_TO_PARAM:
@@ -313,7 +315,9 @@ def check_envelope(
         violations.append(f"confidence {confidence:.2f} < floor {min_conf:.2f}")
 
     kick_ceiling = float(prob.get("max_kick_probability_for_autonomy", 0.60))
-    if kick_probability > kick_ceiling:
+    # Inclusive: the ladder calls 0.60 a Well Control Alert, so the autonomy ceiling must bite at
+    # exactly that point rather than one increment above it.
+    if kick_probability >= kick_ceiling:
         violations.append(
             f"kick probability {kick_probability:.2f} exceeds autonomy ceiling {kick_ceiling:.2f}"
         )
@@ -330,6 +334,17 @@ def check_envelope(
         if asked is not None and asked > limit:
             violations.append(f"{label} {asked:.1f} > max {limit:.0f} {unit}".strip())
             hard = True
+
+    # The mud weight window was applied to proposed ECD only, so a proposal of mud_weight 8.8 ppg
+    # passed against a 9.0-14.5 ppg floor. Both are checked now.
+    proposed_mw = parameters.get("mud_weight")
+    mww_min = float(mww.get("min_ppg", 9.0))
+    mww_max = float(mww.get("max_ppg", 14.5))
+    if proposed_mw is not None and not (mww_min <= proposed_mw <= mww_max):
+        violations.append(
+            f"mud weight {proposed_mw:.2f} ppg outside MWW [{mww_min:.1f}, {mww_max:.1f}]"
+        )
+        hard = True
 
     ecd = parameters.get("ecd", rig_ecd_ppg)
     emw_min = float(mww.get("min_ppg", 9.0))
@@ -579,6 +594,7 @@ def well_control_assess(
     flow_diff_gpm: float = 0.0,
     gas_units_pct: float = 0.0,
     pwd_residual_sigma: float = 0.0,
+    flow_check_pumps_off: bool = False,
 ) -> dict[str, Any]:
     """Fuse the three kick signals into a probability, alert level and classification.
 
@@ -594,7 +610,9 @@ def well_control_assess(
         "gas_units_pct": gas_units_pct,
         "pwd_residual_sigma": pwd_residual_sigma,
     }
-    if not any(value != 0.0 for value in supplied.values()):
+    # A positive flow check with pumps off is evidence in its own right, so it does not need a
+    # channel reading alongside it.
+    if not flow_check_pumps_off and not any(value != 0.0 for value in supplied.values()):
         raise ValueError(
             "well_control_assess needs at least one kick signal: pit_gain_bbl, flow_diff_gpm, "
             "gas_units_pct or pwd_residual_sigma. All four were zero or absent. A well with no "
@@ -617,14 +635,34 @@ def well_control_assess(
     # losses below. Without the floor a loss produced a negative probability.
     m1 = min(max(pwd_residual_sigma / 3.0 * 0.90, 0.0), 0.90)
     m2 = min(max(pit_gain_bbl / 5.0 * 0.95, 0.0), 0.95)
-    m3_gas = min(max(gas_units_pct / (5.0 * background) * 0.70, 0.0), 0.70)
+    # Gas below the well's background is background, not evidence: the 0.5% figure is a subtraction,
+    # not only a full-scale point. Without this, 0.4% gas carried a mass of 0.11.
+    gas_excess = max(gas_units_pct - background, 0.0)
+    m3_gas = min(gas_excess / (5.0 * background) * 0.70, 0.70) if background > 0 else 0.0
     m3_flow = min(max(flow_diff_gpm, 0.0) / 10.0 * 0.80, 0.80)
-    m3 = max(m3_gas, m3_flow)
+    # Gas and flow are independent indicators: agreement is corroboration, so they combine as a
+    # noisy-OR rather than as max(). Under max(), 2% gas with +5 gpm scored exactly as gas alone.
+    m3 = 1.0 - (1.0 - m3_gas) * (1.0 - m3_flow)
     probability = min(max(1.0 - (1.0 - m1) * (1.0 - m2) * (1.0 - m3), 0.0), 1.0)
 
-    if probability >= float(kp["emergency"]) or pit_gain_bbl > float(pg["emergency_bbl"]):
+    # A single signal must not carry the highest consequence on its own: PWD is capped at Alert and
+    # gas at Advisory, so an Emergency needs corroboration or an explicit volume override. Pit totals
+    # land on exact tenths, so the volume overrides compare with >= rather than >.
+    gas_only = m3_gas > 0 and m2 == 0.0 and m3_flow == 0.0
+    pwd_only = m1 > 0 and m2 == 0.0 and m3 == 0.0
+    if pwd_only:
+        probability = min(probability, float(kp["well_control_alert"]) - 1e-9)
+    if gas_only:
+        probability = min(probability, float(kp["advisory"]) + (float(kp["well_control_alert"]) - float(kp["advisory"])) / 2)
+
+    if flow_check_pumps_off:
+        # Evidence outranks the score: a positive flow check with pumps off is a shut-in proposal
+        # whatever the fused number says. The score may raise attention early; it may never lower a
+        # level the evidence sets.
         level = 4
-    elif probability >= float(kp["well_control_alert"]) or pit_gain_bbl > float(pg["advisory_bbl"]):
+    elif probability >= float(kp["emergency"]) or pit_gain_bbl >= float(pg["emergency_bbl"]):
+        level = 4
+    elif probability >= float(kp["well_control_alert"]) or pit_gain_bbl >= float(pg["advisory_bbl"]):
         level = 3
     elif probability >= float(kp["advisory"]):
         level = 2
@@ -654,13 +692,36 @@ def well_control_assess(
     )
     losses = pit_gain_bbl < 0.0 or flow_diff_gpm < 0.0
     escalated_for_losses = False
-    if losses:
+    # Loss classes follow the industry vocabulary. The bbl/hr boundaries are AUTHORED: the published
+    # classes agree that seepage is under ~10 bbl/hr and disagree on everything above it.
+    loss_rate_bbl_hr = max(-flow_diff_gpm, 0.0) * 60.0 / gpm_per_bbl
+    seepage_max = float(loss_cfg.get("seepage_max_bbl_hr", 10.0))
+    partial_max = float(loss_cfg.get("partial_max_bbl_hr", 50.0))
+    if losses and not flow_check_pumps_off:
         target = 3 if loss_magnitude >= loss_alert_bbl else (2 if loss_magnitude >= loss_advisory_bbl else 1)
         if level < target:
             level = target
             escalated_for_losses = True
+        if loss_rate_bbl_hr >= partial_max:
+            loss_class = "severe"
+        elif loss_rate_bbl_hr >= seepage_max or loss_magnitude >= loss_advisory_bbl:
+            loss_class = "partial"
+        else:
+            loss_class = "seepage"
+    else:
+        loss_class = "none"
 
-    if pit_gain_bbl > 0.5 and flow_diff_gpm > 0:
+    # Losses plus any sign of influx is the underground-flow / loss-induced-kick signature. Neither
+    # signal alone justifies it, and treating the pair as a plain loss is how it gets missed.
+    loss_then_influx = losses and (max(gas_units_pct - background, 0.0) > 0 or flow_diff_gpm > 0)
+    if loss_then_influx:
+        level = 4
+
+    if flow_check_pumps_off:
+        classification = "KICK_CONFIRMED"
+    elif loss_then_influx:
+        classification = "UNDERGROUND_FLOW_SUSPECTED"
+    elif pit_gain_bbl > 0.5 and flow_diff_gpm > 0:
         classification = "GAS_KICK" if gas_units_pct > background else "WATER_KICK"
     elif losses:
         # Any negative gain is a loss; the size decides the level, not the classification.
@@ -699,6 +760,9 @@ def well_control_assess(
         )
 
     return {
+        # The fused mass is a deterministic score, not a calibrated probability: renamed so nobody
+        # reads 0.60 as "60% likely". kick_probability is kept as a deprecated alias.
+        "kick_score": round(probability, 4),
         "kick_probability": round(probability, 4),
         "alert_level": level,
         "alert_name": _ALERT_NAMES[level],
@@ -712,6 +776,7 @@ def well_control_assess(
         "regulatory_notification_required": level >= 3,
         "losses_detected": losses,
         "loss_basis": loss_basis,
+        "loss_class": loss_class,
         "loss_equivalent_bbl": round(loss_magnitude, 2),
         "notes": result_notes,
         "authority": "The Driller and Drilling Supervisor decide shut-in. This tool detects and escalates.",

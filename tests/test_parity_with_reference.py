@@ -260,11 +260,13 @@ def test_well_control_normal_is_quiet() -> None:
     assert out["classification"] == "NORMAL"
 
 
-def test_well_control_gas_alone_escalates() -> None:
+def test_well_control_gas_alone_is_capped_at_advisory() -> None:
+    """A single signal must not carry Emergency on its own; gas is capped at Advisory."""
     out = model.well_control_assess(gas_units_pct=4.0)
-    assert out["kick_probability"] >= 0.60
-    assert out["alert_level"] >= 3
-    assert out["regulatory_notification_required"] is True
+    assert out["alert_level"] == 2
+    corroborated = model.well_control_assess(gas_units_pct=4.0, flow_diff_gpm=12.0)
+    assert corroborated["alert_level"] > out["alert_level"]
+
 
 
 def test_well_control_pit_gain_drives_emergency() -> None:
@@ -320,7 +322,7 @@ def test_well_control_refuses_an_impossible_gas_reading() -> None:
 
 
 def test_well_control_escalation_is_never_classified_normal() -> None:
-    out = model.well_control_assess(gas_units_pct=4.0)
+    out = model.well_control_assess(gas_units_pct=4.0, flow_diff_gpm=12.0)
     assert out["alert_level"] >= 3
     assert out["classification"] != "NORMAL"
 
@@ -433,9 +435,9 @@ def test_qse_single_sample_with_window_is_still_actionable() -> None:
 
 def test_envelope_refuses_a_parameter_with_no_configured_limit() -> None:
     """A parameter the policy has no ceiling for is not certified, it is refused."""
-    out = model.check_envelope({"mud_weight_ppg": 15.0})
+    out = model.check_envelope({"hydraulic_horsepower": 900.0})
     assert out["passed"] is False
-    assert out["unverified_parameters"] == ["mud_weight_ppg"]
+    assert out["unverified_parameters"] == ["hydraulic_horsepower"]
 
 
 def test_negotiation_refuses_a_winner_that_breaches_the_envelope() -> None:
@@ -511,6 +513,66 @@ def test_loss_note_names_the_level_actually_set() -> None:
     assert "Advisory level" not in note
     assert "level 3" in note
     assert "authored ladder" in note
+
+
+def test_loss_with_influx_is_underground_flow() -> None:
+    """A loss that also shows gas or excess flow is the underground-flow signature, not a loss."""
+    out = model.well_control_assess(pit_gain_bbl=-5.0, gas_units_pct=2.0)
+    assert out["alert_level"] == 4
+    assert out["classification"] == "UNDERGROUND_FLOW_SUSPECTED"
+
+
+def test_pit_gain_override_is_inclusive() -> None:
+    """2.00 bbl is a pit total that lands on an exact tenth; it must not be one level below 2.01."""
+    assert model.well_control_assess(pit_gain_bbl=2.0)["alert_level"] == 3
+    assert model.well_control_assess(pit_gain_bbl=2.01)["alert_level"] == 3
+
+
+def test_gas_below_background_contributes_nothing() -> None:
+    out = model.well_control_assess(gas_units_pct=0.4)
+    assert out["mass"]["gas_or_flow"] == 0.0
+    assert out["alert_level"] == 0
+
+
+def test_gas_and_flow_corroborate() -> None:
+    """Under max(), 2% gas with +5 gpm scored exactly the same as gas alone."""
+    gas_only = model.well_control_assess(gas_units_pct=2.0)["kick_score"]
+    with_flow = model.well_control_assess(gas_units_pct=2.0, flow_diff_gpm=5.0)["kick_score"]
+    assert with_flow > gas_only
+
+
+def test_flow_check_outranks_the_score() -> None:
+    """Evidence sets the floor: a positive flow check with pumps off is a shut-in proposal."""
+    out = model.well_control_assess(flow_check_pumps_off=True)
+    assert out["alert_level"] == 4
+    assert out["classification"] == "KICK_CONFIRMED"
+
+
+def test_kick_score_renamed_with_a_deprecated_alias() -> None:
+    out = model.well_control_assess(gas_units_pct=2.0)
+    assert out["kick_score"] == out["kick_probability"]
+    assert "Deterministic" in out["basis"]
+
+
+def test_loss_classes_follow_rate() -> None:
+    assert model.well_control_assess(flow_diff_gpm=-3.0)["loss_class"] == "seepage"
+    assert model.well_control_assess(flow_diff_gpm=-20.0)["loss_class"] == "partial"
+    assert model.well_control_assess(flow_diff_gpm=-80.0)["loss_class"] == "severe"
+
+
+def test_envelope_checks_mud_weight_itself() -> None:
+    """The window was applied to proposed ECD only, so mud weight 8.8 passed a 9.0 ppg floor."""
+    out = model.check_envelope({"mud_weight": 8.8})
+    assert out["passed"] is False
+    assert out["hard_violation"] is True
+    assert any("mud weight" in v for v in out["violations"])
+
+
+def test_quality_floor_is_inclusive() -> None:
+    """57 of 60 samples IS 0.95: the floor must not exclude its own value."""
+    out = model.score_sample("wob", 25.0, samples_in_window=57)
+    assert out["quality_score"] == pytest.approx(0.95)
+    assert out["is_actionable"] is True
 
 
 def test_flow_only_loss_discloses_the_equivalent_basis() -> None:

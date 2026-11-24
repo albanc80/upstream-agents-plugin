@@ -344,6 +344,7 @@ def well_control_assess(
     flow_diff_gpm: float = 0.0,
     gas_units_pct: float = 0.0,
     pwd_residual_sigma: float = 0.0,
+    flow_check_pumps_off: bool = False,
 ) -> dict[str, Any]:
     """Fuse kick signals into a probability, alert level and classification.
 
@@ -360,6 +361,7 @@ def well_control_assess(
             flow_diff_gpm=flow_diff_gpm,
             gas_units_pct=gas_units_pct,
             pwd_residual_sigma=pwd_residual_sigma,
+            flow_check_pumps_off=flow_check_pumps_off,
         )
     except ValueError as exc:
         raise ToolError(str(exc)) from exc

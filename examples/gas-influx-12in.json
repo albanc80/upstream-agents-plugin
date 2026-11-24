@@ -40,7 +40,7 @@
       "tool": "well_control_assess",
       "args": { "pit_gain_bbl": 1.2, "flow_diff_gpm": 4.0, "gas_units_pct": 2.0, "pwd_residual_sigma": 1.0 },
       "expect": {
-        "kick_probability": 0.7622,
+        "kick_probability": 0.7869,
         "alert_level": 3,
         "alert_name": "Well Control Alert",
         "classification": "GAS_KICK",
@@ -52,7 +52,7 @@
       "tool": "well_control_assess",
       "args": { "pit_gain_bbl": 4.0, "flow_diff_gpm": 12.0, "gas_units_pct": 3.5, "pwd_residual_sigma": 1.8 },
       "expect": {
-        "kick_probability": 0.9779,
+        "kick_probability": 0.9934,
         "alert_level": 4,
         "alert_name": "Emergency Shut-In Proposal",
         "classification": "GAS_KICK",

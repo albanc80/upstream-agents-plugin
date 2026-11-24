@@ -1,81 +1,109 @@
 # Review brief — thresholds
 
-For a reviewer with drilling/well-control background. **You are not reviewing code.** You are
-reviewing whether each number is right for the context it is applied in, and whether its
-consequence is proportionate. Every value below is transcribed verbatim from a private reference
-implementation (`docs/THRESHOLDS-TRACE.md` carries the `module:line` for each), so transcription is
-not in question — judgement is.
+For a reviewer with drilling/well-control background. **You are not reviewing code, and you are not
+re-reviewing what has already been fixed.** Section 1 is what changed since the last review, so you
+do not spend time on it. Section 2 is what still needs your judgement: numbers that are
+company-policy questions this pack deliberately does not decide.
 
-Three categories, in priority order. Please answer per item: **OK / ADJUST to ___ / WRONG because ___**.
-
----
-
-## 1. The numbers that decide "shut in or keep drilling"
-
-These are the highest consequence: if one is wrong in the permissive direction, a real influx reads
-as normal.
-
-| Value | Where | Question for you |
-|---|---|---|
-| `kick_probability` 0.20 / 0.40 / 0.60 / 0.85 | alert ladder monitor → advisory → alert → emergency | Is a *probability* the right basis for the escalation at all, or should any pit gain with pumps off force the alert regardless of the score? |
-| `pit_gain.advisory_bbl` 2.0, `emergency_bbl` 5.0 | hard overrides to levels 3 and 4 | Are 2 and 5 bbl the right trip/pump-off pit gain triggers **for a 12¼" hole**? Should these scale with hole size or be a fraction of annular volume instead of a fixed barrel count? |
-| `background_gas_pct` 0.5 | gas mass baseline | With connection gas routinely 1–2% on some wells, does 0.5% make every connection an alert? What baseline do you actually use? |
-| `max_kick_probability_for_autonomy` 0.60 | blocks any parameter change above this | Is 0.60 the right point to freeze optimisation, or should *any* positive pit gain already freeze it? |
-| `min_data_quality_to_act` 0.95 | gate: below this, no answer is actionable | **Is 0.95 achievable with real rig sensors, or does this block everything in practice?** This is the one most likely to make the pack unusable. |
-| `losses` 2.0 / 5.0 bbl, plus `flow_equivalent_gpm_per_bbl` 42.0 | **authored here**, mirroring the pit-gain ladder; severe losses stop at level 3 because a losing well is not shut in | The reference defines no loss threshold, so we authored one and labelled it. Are 2 and 5 bbl the right points, is stopping at level 3 right, and is converting a flow deficit to an equivalent barrel-per-minute loss a fair way to size a loss whose pit has not caught up? |
-
-### Fusion scaling (the same category, needs your physics)
-
-Each signal is mapped to a 0–1 mass and combined. The divisors set how fast a signal saturates:
-
-- PWD residual `sigma / 3.0 × 0.90` — is 3σ the right full-scale?
-- pit gain `bbl / 5.0 × 0.95` — 5 bbl gives near-full mass; too sensitive for a large hole?
-- gas `pct / (5 × 0.5) × 0.70` and flow `gpm / 10.0 × 0.80` — are 10 gpm and 2.5% sensible half-scales?
+Status: `site_validated: false`. Nothing here is used on a live well until you sign off the numbers.
 
 ---
 
-## 2. Limits applied as hard blocks on every proposed change
+## 1 - What the code now does (settled - please skip)
 
-A limit set too low blocks legitimate work (operational failure); too high fails to protect the
-string. All are currently global, i.e. not per-hole-size or per-section.
+The previous review found the pack's *behaviour* contradicting its own documentation. Those are
+closed, each with a regression test.
 
-| Value | Question |
+| Was | Now |
 |---|---|
-| `max_wob_klbs` 40 · `max_rpm` 180 · `max_standpipe_pressure_psi` 4000 · `max_torque_ft_lbs` 15000 | Are these rig/tool limits or rules of thumb? Which of them are safe as a global ceiling, and which must be per-section? |
-| `mud_weight_window` 9.0–14.5 ppg | Is a fixed window meaningful, or should it be pore–frac derived per well? |
-| `max_dls_per_100ft` 5.0 | OK as a ceiling for a motor/BHA? |
-| `h2s_alarm_ppm` 10.0 | Matches your alarm philosophy? |
-| `min_confidence_for_action` 0.75 | Any objection to an agent acting at 0.75 on a parameter change? |
+| Losses lowered the kick score and read Normal | Masses floored at 0. Losses follow their own ladder (2 bbl Advisory, 5 bbl Alert), classified `LOST_CIRCULATION` |
+| A loss with gas or excess flow read as a plain loss | Escalates to **level 4**, classified `UNDERGROUND_FLOW_SUSPECTED` - the underground-flow signature |
+| `weight_on_bit` bypassed the envelope; unknown names passed | Fails closed: channel ids and unit suffixes resolve to their limits; anything unresolvable - **or resolvable with no configured limit** - is refused as uncertifiable |
+| Mud weight was never checked, only ECD | `mud_weight` is checked against the 9.0-14.5 ppg window in its own right |
+| Emergency returned `classification: NORMAL` | An escalation is never labelled Normal; classification comes from the same evidence as the level |
+| 2.00 bbl was Monitor but 2.01 bbl was Alert | Volume overrides compare `>=`; the autonomy ceiling is inclusive at 0.60 too |
+| 0.4% gas - below the 0.5% background - still added mass | Background is **subtracted**: sub-background gas contributes nothing |
+| Gas and flow combined by `max()`, so agreement earned nothing | Combined as noisy-OR: 2% gas with +5 gpm now outranks gas alone |
+| One signal alone reached Emergency (PWD 3 sigma, 5 bbl, 10 gpm) | PWD alone is capped at Alert, gas alone at Advisory. Emergency needs corroboration or a volume override |
+| A bare QSE sample scored 1.0 and was actionable | `UNVERIFIED_CHECKS`, not actionable, when no observation window is supplied |
+| 57/60 samples = 0.95 was flagged OK but not actionable | The floor is inclusive at its own value |
+| `kick_probability` read as a calibrated probability | Primary field is **`kick_score`** (`kick_probability` kept as a deprecated alias). A positive flow check with pumps off forces level 4 whatever the score |
 
----
+If any of these is still misbehaving, that is a defect - say so and it gets fixed, not debated.
 
-## 3. Agent-specific constants worth a sanity check
+## 2 - What still needs your judgement
 
-| Area | Values | Question |
-|---|---|---|
-| Stuck pipe | weights torque 0.40 / overpull 0.30 / overbalance 0.20 / inclination 0.10; scales 6,000 ft·lbf, 60 klbf; **veto at risk ≥ 60**; standard alternative **WOB −3 klbf, RPM +10** | Is torque-dominant weighting right for your wells? Is 60 the right veto point? Is "less WOB, more RPM" a sound generic response, or does it depend on the mechanism (differential sticking wants overbalance reduced, not WOB)? |
-| Directional | WSF 1.5 caution / 1.0 mandatory stop; collision boundary 25 ft; min survey spacing 5 ft | Are these your company's separation rules or generic? |
-| Hydraulics/fluids | ECD warn at 0.9 × frac; overbalance min 0.2 ppg; ECD–FG min margin 0.3 ppg; CTR adequate 0.55 / deficit 0.40 | Do those margins match practice on your fields? |
-| Casing | design factors burst 1.1 / collapse 1.0 / tension 1.3; advisory 1.2 / 1.1 | Standard DF basis? |
-| Cementing | channeling density Δ 0.5 ppg, pressure Δ 10%, ZIA pass 0.7 / fail 0.5 | Are the ZIA cut-offs meaningful or arbitrary? |
-| Geosteering | target window 9,000–9,400 ft TVD, exit warning 50 ft, auto TVD correction 1 ft | Placeholders from one well — obviously not universal |
-| Optimisation | WOB auto delta 3 klbf, RPM +5, vibration 0.7, min improvement 2%, bit size 8.5" | Is a 2% ROP improvement worth a change? |
+Where a number is in the pack it is either transcribed from a reference implementation or
+**authored here** and labelled as such. An authored number has no pedigree and needs your answer.
 
----
+### 2.1 The basis of escalation
 
-## What to ignore
+| Question | Where it stands |
+|---|---|
+| Should a shut-in proposal rest on evidence rather than a fused score? | Partly implemented: a positive flow check with pumps off forces level 4 regardless of score. The score still sets levels 0-3. **Should any unexplained pit gain also force a shut-in proposal, independent of score?** |
+| Is a fixed 2 / 5 bbl pit gain defensible across hole sizes? | Still fixed. Over 5-inch pipe, 5 bbl is 18 ft of influx in 17.5-inch hole but 109 ft in 8.5-inch. **The volumetric cap needs a kick-tolerance fraction from your well-control policy - the pack will not invent it.** |
+| Is the 0.02 EMA on pit baseline acceptable? | Still present. At 1 Hz that is a ~50 s time constant, so a slow gain is absorbed into the reference. **Recommend freezing the reference at last known-good state instead - confirm.** |
 
-Code, packaging, agent prompt wording, the MCP transport. Not your scope, already reviewed four
-times.
+### 2.2 Loss classes
 
-## What I would ask you to answer first, if you only have an hour
+Authored boundaries: seepage < 10 bbl/hr, partial 10-50 bbl/hr, severe >= 50 bbl/hr; losses cap at
+level 3 (a losing well is treated, not shut in); loss plus any gain goes to level 4.
+**Published classes agree only on "seepage < 10 bbl/hr" and disagree above it (30 / 50 / 100 / 200).
+Pick your operator numbers.**
 
-1. Is the **pit-gain** basis (fixed 2 and 5 bbl) defensible across hole sizes, or must it be
-   volumetric?
-2. Is **data quality 0.95** realistic against real sensor behaviour?
-3. What **loss** threshold should exist, given the contract has none?
-4. Is a **probability score** an acceptable basis for a shut-in recommendation at all, or should the
-   ladder be evidence-driven (pit gain, flow with pumps off, gas) rather than score-driven?
+### 2.3 Per-section equipment limits
 
-Nothing in this package is used on a live well until `site_validated` stops being `false`. This
-review is the step that would start that.
+Currently global rules of thumb, which is wrong for at least half of them:
+
+| Value | Why it needs you |
+|---|---|
+| `max_wob_klbs` 40 | Large-hole PDC often needs more; 6.125-inch needs far less |
+| `max_rpm` 180 | Surface or bit RPM? Limit is motor/BHA/pipe plus the vibration envelope |
+| `max_standpipe_pressure_psi` 4000 | Many rigs run 5000 psi; deep 8.5-inch sections exceed 4000 |
+| `max_torque_ft_lbs` 15000 | Likely below make-up torque for 5-inch+ connections - would block normal work |
+| `mud_weight_window` 9.0-14.5 ppg | Blocks water/brine and HPHT alike. Should be pore pressure + overbalance to frac gradient minus margin, per depth |
+| `max_dls_per_100ft` 5.0 | Unconventional curves are planned above this; casing/ESP intervals need less |
+| `max_flow_rate_gpm` 1200 | **Authored here** - the reference defines none. Verify against the rig pump schedule |
+| `min_data_quality_to_act` 0.95 | A feed dropping 3 samples/min fails it. Measure from recorded rig data, per channel, with hysteresis; for well control, low quality should escalate rather than block |
+| `min_confidence_for_action` 0.75 | Meaningless without a reliability curve on held-out cases. Until then, require human confirmation for every parameter change |
+| `h2s_alarm_ppm` 10 | Common first alarm; BSEE 30 CFR 250.490 builds required actions around 20 ppm. Confirm the jurisdiction before calling 10 "regulatory" |
+
+### 2.4 Agent constants
+
+| Area | Question |
+|---|---|
+| Stuck pipe weighting 0.40 torque / 0.30 overpull / 0.20 overbalance / 0.10 inclination | Torque-led weighting understates differential sticking. Weight by mechanism instead? |
+| Overbalance floor 3.0 ppg | If this is a floor, the term is zero on most wells and differential sticking is invisible. Confirm the intended semantics |
+| Veto at risk >= 60 | Should it also block reduced flow under pack-off risk, stopped rotation, extended stationary time? |
+| Alternative "WOB -3 klbf, RPM +10" | Wrong as a generic: pack-off wants flow and rotation, differential sticking wants overbalance reduced, geometry wants reaming. Replace with "do not add WOB; keep circulating and moving pipe; call the driller"? |
+| ECD warn at 0.9 x FG | Gives 1.6 ppg of margin at 16 ppg FG but 1.1 ppg at 11 ppg. Use absolute ppg margins like `ecd_fg_min_margin` 0.3? |
+| CTR 0.55 / 0.40 | Vertical-well concept; above ~30 deg inclination cuttings beds govern. Deviated-hole model? |
+| Casing DF 1.1 burst / 1.0 collapse / 1.3 tension | Tension 1.3 is low if applied to API joint strength (many use ~1.6). Confirm the basis, add triaxial/VME? |
+| Cementing density delta 0.5 ppg, pressure delta 10%, ZIA 0.7 / 0.5 | 0.5 ppg is loose against normal slurry density control; ZIA cut-offs are arbitrary until calibrated against bond logs |
+| Geosteering 9,000-9,400 ft, 50 ft, 1 ft | One well's placeholders - refuse to run without a target from the well plan? |
+| Optimisation WOB 3 klbf / RPM 5 / vibration 0.7 / 2% | 2% ROP is inside formation noise. Require persistence over footage, net of MSE and vibration cost? |
+| Directional WSF 1.5 / 1.0, 25 ft, 5 ft | Matches common ISCWSA practice, but for high-consequence offsets 1.5 is often the stop. Confirm |
+
+## 3 - What was checked and holds
+
+Transcription is consistent: every value quoted here matches `docs/THRESHOLDS-TRACE.md` and the live
+`thresholds_used` block. Ladders are monotonic, weight sets sum to 1.0, advisory design factors sit
+above their minimums, and the negotiation stage timeouts (500 + 400 + 600 + 500 ms) sum to the
+2,000 ms window.
+
+Known gaps, stated rather than hidden: fusion constants now have trace rows but their per-line
+references are not individually confirmed; several values are duplicated across the reference
+implementation's modules (this pack keeps one policy file, so copies cannot drift); geometry defaults
+conflict between agents (12.25-inch cementing vs 8.5-inch hydraulics) and are placeholders; the lift
+gap between rod pump 400 stb/d and ESP 1,000 stb/d is not covered.
+
+## 4 - The four answers worth giving first
+
+1. **Kick-tolerance fraction** for the pit-gain volumetric cap. Without it, 2/5 bbl stays fixed.
+2. **Loss classification boundaries** - your operator's seepage / partial / severe split in bbl/hr.
+3. **Per-section equipment limits** - WOB, RPM (surface or bit), SPP, torque, DLS, mud window basis.
+4. **Whether any unexplained pit gain forces a shut-in proposal** regardless of score.
+
+## Out of scope
+
+Code, packaging, agent prompt wording, the MCP transport. Reviewed five times; not your time.

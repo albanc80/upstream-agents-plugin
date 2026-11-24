@@ -3,20 +3,34 @@
 > Values marked **authored here** were not transcribed from the reference implementation: it
 > defines nothing at that key. They exist so a gap could not silently pass as a decision, they
 > carry no pedigree, and they are listed under `authored_limits` in
-> `src/policies/safety-envelope.yaml`. They need a rig-specific answer before site use.
-
-Every number in `src/agents/` and `src/policies/` is transcribed from the author's private
-reference implementation, which is **not** part of this package. The `Source` column gives the
-module and line in that implementation at extraction time.
-
-Why keep the line references at all: they are the difference between a number with an origin
-and a number someone typed. They let the implementation and this package be re-audited against
-each other after any change. They are not links a reader can follow — the implementation is
-private — so treat a row as "this value came from that routine", not as a citation you can
-open.
-
-`tools/validate.py` fails if a contract threshold key has no row here.
-
+> `src/policies/safety-envelope.yaml`. They need a rig-specific answer before site use.
+
+
+
+Every number in `src/agents/` and `src/policies/` is transcribed from the author's private
+
+reference implementation, which is **not** part of this package. The `Source` column gives the
+
+module and line in that implementation at extraction time.
+
+
+
+Why keep the line references at all: they are the difference between a number with an origin
+
+and a number someone typed. They let the implementation and this package be re-audited against
+
+each other after any change. They are not links a reader can follow — the implementation is
+
+private — so treat a row as "this value came from that routine", not as a citation you can
+
+open.
+
+
+
+`tools/validate.py` fails if a contract threshold key has no row here.
+
+
+
 ## `well-control-monitoring-agent`
 
 | Value | Source |
@@ -25,6 +39,12 @@ open.
 | `kick_probability.advisory` 0.40 | `agents/well_control_agent.py:23` |
 | `kick_probability.well_control_alert` 0.60 | `agents/well_control_agent.py:24` |
 | `kick_probability.emergency` 0.85 | `agents/well_control_agent.py:25` |
+| **fusion** PWD `sigma / 3.0 x 0.90` | weight set `agents/well_control_agent.py:237`; per-line reference not individually confirmed |
+| **fusion** pit `bbl / 5.0 x 0.95` | same weight set; unconfirmed per line |
+| **fusion** gas `(pct - background) / (5 x background) x 0.70` | same weight set; background subtracted as of 1.1.8 |
+| **fusion** flow `gpm / 10.0 x 0.80` | same weight set; unconfirmed per line |
+| **fusion** gas and flow combine as noisy-OR, not max | behaviour change 1.1.8 |
+| **fusion** single-signal caps: PWD -> Alert, gas -> Advisory | authored here: one signal must not reach Emergency alone |
 | `pit_gain.advisory_bbl` 2.0 | `agents/well_control_agent.py:27` |
 | `pit_gain.emergency_bbl` 5.0 | `agents/well_control_agent.py:28` |
 | `pit_baseline_ema_alpha` 0.02 | `agents/well_control_agent.py:31` |
