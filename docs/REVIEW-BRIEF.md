@@ -33,15 +33,30 @@ If any of these is still misbehaving, that is a defect - say so and it gets fixe
 
 ## 2 - What still needs your judgement
 
-Where a number is in the pack it is either transcribed from a reference implementation or
-**authored here** and labelled as such. An authored number has no pedigree and needs your answer.
+Where a number is in the pack it is transcribed from a reference implementation, authored here, or
+an **industry-average default standing in for your policy**. Defaults are listed in
+`src/policies/safety-envelope.yaml` under `calibration`, and every tool answer carries
+`defaults_in_use` plus a `calibration_note` naming them, so nothing is silently a guess.
+
+### 2.0 Defaults in force - replace these
+
+| Key | Default | Basis | Replace from |
+|---|---|---|---|
+| `pit_gain.kick_tolerance_fraction` | 0.5 | half the section's kick-tolerance volume | well-control policy, per section |
+| `losses.seepage_max_bbl_hr` / `partial_max_bbl_hr` | 10 / 50 | published agreement on seepage; midpoint of 30/50/100 | operator loss-classification standard |
+| `max_flow_rate_gpm` | 1200 | mid-size rig average | the rig's pump schedule |
+| `min_data_quality_to_act` | 0.95 | **unverified** - measurement deferred, no live rig data available yet | per-channel distributions from recorded data |
+| `mud_weight_window` | 9.0-14.5 ppg | fixed window; wrong basis for water, brine and HPHT | pore pressure + overbalance to frac gradient minus margin, per section |
+
+**Until these are replaced, every answer is an industry-average answer.** That is the honest reading
+of `site_validated: false`.
 
 ### 2.1 The basis of escalation
 
 | Question | Where it stands |
 |---|---|
 | Should a shut-in proposal rest on evidence rather than a fused score? | Partly implemented: a positive flow check with pumps off forces level 4 regardless of score. The score still sets levels 0-3. **Should any unexplained pit gain also force a shut-in proposal, independent of score?** |
-| Is a fixed 2 / 5 bbl pit gain defensible across hole sizes? | Still fixed. Over 5-inch pipe, 5 bbl is 18 ft of influx in 17.5-inch hole but 109 ft in 8.5-inch. **The volumetric cap needs a kick-tolerance fraction from your well-control policy - the pack will not invent it.** |
+| Is a fixed 2 / 5 bbl pit gain defensible across hole sizes? | Fixed 2/5 bbl still sets the level, but the tool now reports `influx_height_ft` when hole geometry is supplied (5 bbl is ~18 ft in 17.5-inch hole, ~109 ft in 8.5-inch) and enforces a **volumetric cap** when `kick_tolerance_volume_bbl` is passed: exceeding 0.5 x kick tolerance escalates to Emergency. The 0.5 is a default - confirm your own fraction and pass your section volumes. |
 | Is the 0.02 EMA on pit baseline acceptable? | Still present. At 1 Hz that is a ~50 s time constant, so a slow gain is absorbed into the reference. **Recommend freezing the reference at last known-good state instead - confirm.** |
 
 ### 2.2 Loss classes
@@ -90,6 +105,10 @@ Transcription is consistent: every value quoted here matches `docs/THRESHOLDS-TR
 `thresholds_used` block. Ladders are monotonic, weight sets sum to 1.0, advisory design factors sit
 above their minimums, and the negotiation stage timeouts (500 + 400 + 600 + 500 ms) sum to the
 2,000 ms window.
+
+**Deferred by decision:** the 0.95 data-quality floor stays a default because calibrating it needs
+per-channel distributions from recorded rig data, and there is no access to live rig systems yet. It
+is labelled unverified in the calibration block rather than presented as measured.
 
 Known gaps, stated rather than hidden: fusion constants now have trace rows but their per-line
 references are not individually confirmed; several values are duplicated across the reference

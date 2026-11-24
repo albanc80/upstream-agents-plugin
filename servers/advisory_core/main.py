@@ -345,6 +345,9 @@ def well_control_assess(
     gas_units_pct: float = 0.0,
     pwd_residual_sigma: float = 0.0,
     flow_check_pumps_off: bool = False,
+    hole_diameter_in: float | None = None,
+    pipe_od_in: float | None = None,
+    kick_tolerance_volume_bbl: float | None = None,
 ) -> dict[str, Any]:
     """Fuse kick signals into a probability, alert level and classification.
 
@@ -362,6 +365,9 @@ def well_control_assess(
             gas_units_pct=gas_units_pct,
             pwd_residual_sigma=pwd_residual_sigma,
             flow_check_pumps_off=flow_check_pumps_off,
+            hole_diameter_in=hole_diameter_in,
+            pipe_od_in=pipe_od_in,
+            kick_tolerance_volume_bbl=kick_tolerance_volume_bbl,
         )
     except ValueError as exc:
         raise ToolError(str(exc)) from exc

@@ -90,6 +90,24 @@ def safety_limits() -> dict[str, Any]:
     return (_load("src/policies/safety-envelope.yaml") or {}).get("limits", {})
 
 
+def calibration() -> dict[str, Any]:
+    """The published defaults standing in for company-policy values, and what to replace them with."""
+    return (_load("src/policies/safety-envelope.yaml") or {}).get("calibration", {}) or {}
+
+
+def defaults_in_use() -> list[str]:
+    """Keys whose current value is a default rather than a site answer."""
+    return sorted((calibration().get("defaults") or {}).keys())
+
+
+def calibration_note() -> str:
+    return (
+        "Values marked as defaults are industry averages, not site answers: "
+        + ", ".join(defaults_in_use())
+        + ". Update them from your well-control policy before site use."
+    )
+
+
 def envelope_site_validated() -> bool:
     return bool((_load("src/policies/safety-envelope.yaml") or {}).get("site_validated", False))
 
@@ -307,6 +325,7 @@ def check_envelope(
             "violations": violations,
             "hard_violation": False,
             "unverified_parameters": unverified,
+            "defaults_in_use": defaults_in_use(),
             "site_validated": envelope_site_validated(),
         }
 
@@ -382,6 +401,7 @@ def check_envelope(
         "violations": violations,
         "hard_violation": hard,
         "unverified_parameters": unverified,
+        "defaults_in_use": defaults_in_use(),
         "site_validated": envelope_site_validated(),
     }
 
@@ -595,6 +615,9 @@ def well_control_assess(
     gas_units_pct: float = 0.0,
     pwd_residual_sigma: float = 0.0,
     flow_check_pumps_off: bool = False,
+    hole_diameter_in: float | None = None,
+    pipe_od_in: float | None = None,
+    kick_tolerance_volume_bbl: float | None = None,
 ) -> dict[str, Any]:
     """Fuse the three kick signals into a probability, alert level and classification.
 
@@ -717,6 +740,24 @@ def well_control_assess(
     if loss_then_influx:
         level = 4
 
+    # Fixed barrel thresholds are permissive in small hole: 5 bbl is 18 ft of influx in 17.5" hole
+    # but 109 ft in 8.5". When the caller supplies hole geometry and the section's kick tolerance,
+    # the cap becomes volumetric. The fraction is an industry average from the calibration block and
+    # is reported as a default, not a site answer.
+    cap_cfg = (calibration().get("defaults") or {}).get("pit_gain.kick_tolerance_fraction", {}) or {}
+    kt_fraction = float(cap_cfg.get("value", 0.5))
+    annular_capacity_bbl_ft: float | None = None
+    influx_height_ft: float | None = None
+    volumetric_cap_bbl: float | None = None
+    if hole_diameter_in and pipe_od_in and hole_diameter_in > pipe_od_in:
+        annular_capacity_bbl_ft = (hole_diameter_in**2 - pipe_od_in**2) / 1029.4
+        if annular_capacity_bbl_ft > 0:
+            influx_height_ft = pit_gain_bbl / annular_capacity_bbl_ft
+    if kick_tolerance_volume_bbl and kick_tolerance_volume_bbl > 0:
+        volumetric_cap_bbl = kt_fraction * kick_tolerance_volume_bbl
+        if pit_gain_bbl >= volumetric_cap_bbl:
+            level = 4
+
     if flow_check_pumps_off:
         classification = "KICK_CONFIRMED"
     elif loss_then_influx:
@@ -777,6 +818,13 @@ def well_control_assess(
         "losses_detected": losses,
         "loss_basis": loss_basis,
         "loss_class": loss_class,
+        "influx_height_ft": round(influx_height_ft, 1) if influx_height_ft is not None else None,
+        "annular_capacity_bbl_ft": (
+            round(annular_capacity_bbl_ft, 4) if annular_capacity_bbl_ft is not None else None
+        ),
+        "volumetric_cap_bbl": round(volumetric_cap_bbl, 2) if volumetric_cap_bbl is not None else None,
+        "defaults_in_use": defaults_in_use(),
+        "calibration_note": calibration_note(),
         "loss_equivalent_bbl": round(loss_magnitude, 2),
         "notes": result_notes,
         "authority": "The Driller and Drilling Supervisor decide shut-in. This tool detects and escalates.",

@@ -78,6 +78,36 @@ authored_limits:
   - losses.seepage_max_bbl_hr
   - losses.partial_max_bbl_hr  # 42 gal/bbl over one minute, to size a flow-only loss
 
+calibration:
+  # Industry-average defaults stand in for values that are company-policy decisions. They exist so
+  # a choice is visible rather than absent, and every tool that uses them says so in its output.
+  # MUST UPDATE before site use; site_validated stays false until they are replaced.
+  must_update_before_site_use: true
+  defaults:
+    pit_gain.kick_tolerance_fraction:
+      value: 0.5
+      basis: "average: cap the pit gain at half the section kick-tolerance volume"
+      update_from: "well-control policy (kick tolerance per section)"
+    losses.seepage_max_bbl_hr:
+      value: 10.0
+      basis: "published classes agree on seepage < 10 bbl/hr"
+      update_from: "operator loss-classification standard"
+    losses.partial_max_bbl_hr:
+      value: 50.0
+      basis: "midpoint of the 30 / 50 / 100 bbl/hr figures in circulation"
+      update_from: "operator loss-classification standard"
+    max_flow_rate_gpm:
+      value: 1200.0
+      basis: "average for a mid-size rig"
+      update_from: "rig pump schedule"
+    min_data_quality_to_act:
+      value: 0.95
+      basis: "unverified: needs per-channel distributions from recorded rig data"
+      update_from: "empirical measurement (deferred - no live rig data available yet)"
+    mud_weight_window:
+      basis: "fixed 9.0-14.5 ppg; correct basis is pore pressure + overbalance to frac gradient - margin"
+      update_from: "pore pressure / fracture gradient per section"
+
 channel_parameter_map:
   wob: weight_on_bit
   rpm: rpm

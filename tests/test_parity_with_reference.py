@@ -575,6 +575,39 @@ def test_quality_floor_is_inclusive() -> None:
     assert out["is_actionable"] is True
 
 
+def test_defaults_are_reported_not_hidden() -> None:
+    """A default standing in for a company-policy value must say so in every answer that uses it."""
+    out = model.well_control_assess(pit_gain_bbl=1.0)
+    assert "min_data_quality_to_act" in out["defaults_in_use"]
+    assert "pit_gain.kick_tolerance_fraction" in out["defaults_in_use"]
+    assert "must update" in out["calibration_note"].lower() or "Update them" in out["calibration_note"]
+    env = model.check_envelope({"wob": 20.0})
+    assert "min_data_quality_to_act" in env["defaults_in_use"]
+
+
+def test_influx_height_makes_fixed_barrels_interpretable() -> None:
+    """5 bbl is 18 ft of influx in 17.5" hole and 109 ft in 8.5": the same volume, different risk."""
+    big = model.well_control_assess(pit_gain_bbl=5.0, hole_diameter_in=17.5, pipe_od_in=5.0)
+    small = model.well_control_assess(pit_gain_bbl=5.0, hole_diameter_in=8.5, pipe_od_in=5.0)
+    assert big["influx_height_ft"] < small["influx_height_ft"]
+    assert big["annular_capacity_bbl_ft"] == pytest.approx((17.5**2 - 5.0**2) / 1029.4, abs=1e-3)
+
+
+def test_volumetric_cap_escalates_to_emergency() -> None:
+    """With a kick-tolerance volume supplied, exceeding half of it is an Emergency."""
+    under = model.well_control_assess(pit_gain_bbl=4.0, kick_tolerance_volume_bbl=20.0)
+    over = model.well_control_assess(pit_gain_bbl=12.0, kick_tolerance_volume_bbl=20.0)
+    assert under["volumetric_cap_bbl"] == pytest.approx(10.0)
+    assert under["alert_level"] < 4
+    assert over["alert_level"] == 4
+
+
+def test_geometry_is_optional_and_never_invented() -> None:
+    out = model.well_control_assess(pit_gain_bbl=3.0)
+    assert out["influx_height_ft"] is None
+    assert out["volumetric_cap_bbl"] is None
+
+
 def test_flow_only_loss_discloses_the_equivalent_basis() -> None:
     note = " ".join(model.well_control_assess(flow_diff_gpm=-200.0)["notes"])
     assert "equivalent" in note and "not a measured volume" in note
