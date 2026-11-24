@@ -22,7 +22,7 @@ as normal.
 | `background_gas_pct` 0.5 | gas mass baseline | With connection gas routinely 1–2% on some wells, does 0.5% make every connection an alert? What baseline do you actually use? |
 | `max_kick_probability_for_autonomy` 0.60 | blocks any parameter change above this | Is 0.60 the right point to freeze optimisation, or should *any* positive pit gain already freeze it? |
 | `min_data_quality_to_act` 0.95 | gate: below this, no answer is actionable | **Is 0.95 achievable with real rig sensors, or does this block everything in practice?** This is the one most likely to make the pack unusable. |
-| *no loss threshold exists* | losses currently escalate to Advisory and are labelled `LOST_CIRCULATION`, with a note that the contract defines none | What loss rate or cumulative pit loss should escalate, and to which level? We deliberately did not invent a number. |
+| `losses` 2.0 / 5.0 bbl | **authored here**, mirroring the pit-gain ladder; severe losses stop at level 3 because a losing well is not shut in | The reference defines no loss threshold, so we authored one and labelled it as such. Are 2 and 5 bbl the right points, and is stopping at level 3 right? |
 
 ### Fusion scaling (the same category, needs your physics)
 

@@ -73,6 +73,17 @@ def _load(rel: str) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
+@lru_cache(maxsize=1)
+def agent_ids() -> frozenset[str]:
+    """The agent ids declared by the packaged contracts in src/agents."""
+    found: set[str] = set()
+    root = plugin_root() / "src" / "agents"
+    for path in sorted(root.glob("*.yaml")):
+        data = _load(f"src/agents/{path.name}") or {}
+        found.add(str(data.get("id") or data.get("name") or path.stem))
+    return frozenset(found)
+
+
 def safety_limits() -> dict[str, Any]:
     """Envelope limits from src/policies/safety-envelope.yaml."""
     return (_load("src/policies/safety-envelope.yaml") or {}).get("limits", {})
@@ -214,7 +225,9 @@ _PARAM_CHANNEL = {
 }
 
 _CHANNEL_TO_PARAM = {channel: param for param, channel in _PARAM_CHANNEL.items()}
-_LIMIT_KEYS = frozenset({"wob", "rpm", "standpipe_pressure", "torque", "ecd", "dls_per_100ft"})
+_LIMIT_KEYS = frozenset(
+    {"wob", "rpm", "standpipe_pressure", "torque", "ecd", "dls_per_100ft", "flow_rate"}
+)
 _UNIT_SUFFIXES = ("_klbs", "_klbf", "_ppg", "_gpm", "_psi", "_ft_lbs", "_ft_lbf")
 
 
@@ -309,6 +322,7 @@ def check_envelope(
         ("rpm", float(equipment.get("max_rpm", 180)), "RPM", ""),
         ("standpipe_pressure", float(equipment.get("max_standpipe_pressure_psi", 4000.0)), "SPP", "psi"),
         ("torque", float(equipment.get("max_torque_ft_lbs", 15000.0)), "torque", "ft-lbs"),
+        ("flow_rate", float(equipment.get("max_flow_rate_gpm", 1200.0)), "flow rate", "gpm"),
     ]
     for key, limit, label, unit in checks:
         asked = parameters.get(key)
@@ -415,6 +429,19 @@ def negotiate(
     then confidence. Outcomes: CONSENSUS, SAFETY_VETO, DEADLOCK, TIMEOUT.
     """
     vetoes = vetoes or []
+
+    # An id that is not in the roster is a typo or a different package; either way its tier means
+    # nothing here, and a phantom safety agent would be trusted as if it existed.
+    known_agents = agent_ids()
+    if known_agents:
+        claimed = {str(p.get("agent_id", "")) for p in proposals} | {str(v.get("by_agent", "")) for v in vetoes}
+        unknown_agents = sorted(a for a in claimed if a not in known_agents)
+        if unknown_agents:
+            raise ValueError(
+                "unknown agent id(s): " + ", ".join(unknown_agents)
+                + " — not among the packaged contracts. Use the ids in src/agents so the tier a "
+                "proposal claims can be checked against the contract that declares it."
+            )
 
     # Tier and confidence are ordinal: a tier outside 1..4 or a confidence outside 0..1 does not
     # mean "unusual", it means the caller and the contract disagree about the scale.
@@ -605,18 +632,25 @@ def well_control_assess(
     else:
         level = 0
 
-    # Losses: the packaged contract has no loss threshold, so rather than certify "Normal" the
-    # advisory is raised to at least the Advisory level and the gap is reported. Inventing a
-    # losses threshold from the gain thresholds would be a fabricated number.
+    # Losses: the packaged contract defines no loss threshold. Rather than leave every loss at one
+    # level, a ladder is authored in the policy and marked authored_limits, so severity escalates
+    # and the provenance is visible. It stops at 3: a well losing returns is not shut in.
+    loss_cfg = safety_limits().get("losses", {}) or {}
+    loss_advisory_bbl = float(loss_cfg.get("advisory_bbl", 2.0))
+    loss_alert_bbl = float(loss_cfg.get("alert_bbl", 5.0))
+    loss_magnitude = max(-pit_gain_bbl, 0.0)
     losses = pit_gain_bbl < 0.0 or flow_diff_gpm < 0.0
     escalated_for_losses = False
-    if losses and level < 2:
-        level = 2
-        escalated_for_losses = True
+    if losses:
+        target = 3 if loss_magnitude >= loss_alert_bbl else (2 if loss_magnitude >= loss_advisory_bbl else 1)
+        if level < target:
+            level = target
+            escalated_for_losses = True
 
     if pit_gain_bbl > 0.5 and flow_diff_gpm > 0:
         classification = "GAS_KICK" if gas_units_pct > background else "WATER_KICK"
-    elif flow_diff_gpm < -5.0 or pit_gain_bbl < -1.0:
+    elif losses:
+        # Any negative gain is a loss; the size decides the level, not the classification.
         classification = "LOST_CIRCULATION"
     else:
         classification = "NORMAL"

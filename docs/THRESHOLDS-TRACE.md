@@ -1,4 +1,9 @@
-# Threshold provenance
+# Threshold provenance
+
+> Values marked **authored here** were not transcribed from the reference implementation: it
+> defines nothing at that key. They exist so a gap could not silently pass as a decision, they
+> carry no pedigree, and they are listed under `authored_limits` in
+> `src/policies/safety-envelope.yaml`. They need a rig-specific answer before site use.
 
 Every number in `src/agents/` and `src/policies/` is transcribed from the author's private
 reference implementation, which is **not** part of this package. The `Source` column gives the
@@ -62,6 +67,8 @@ open.
 | `max_rpm` 180 | `config.py:107` |
 | `max_standpipe_pressure_psi` 4000.0 | `config.py:108` |
 | `max_torque_ft_lbs` 15000.0 | `config.py:109` |
+| `max_flow_rate_gpm` 1200.0 | **authored here** — the reference defines none |
+| `losses.advisory_bbl` 2.0 / `alert_bbl` 5.0 | **authored here** — mirrors the pit-gain ladder; reference defines none |
 | `max_dls_per_100ft` 5.0 | `config.py:110` |
 | `h2s_alarm_ppm` 10.0 | `config.py:111` |
 | `min_confidence_for_action` 0.75 | `config.py:112` |

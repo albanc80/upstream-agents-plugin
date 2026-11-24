@@ -243,11 +243,11 @@ def test_negotiation_veto_generates_alternative() -> None:
 
 def test_negotiation_deadlock_timeout_and_empty() -> None:
     dead = model.negotiate(
-        [_p("a", 4, 0.9, wob=30.0)],
-        [{"by_agent": "b", "priority_tier": 2, "target_proposal_id": "p0", "reason": "no"}],
+        [_p("drilling-optimization-agent", 4, 0.9, wob=30.0)],
+        [{"by_agent": "well-control-monitoring-agent", "priority_tier": 2, "target_proposal_id": "p0", "reason": "no"}],
     )
     assert dead["outcome"] == "DEADLOCK"
-    assert model.negotiate([_p("a", 4, 0.9)], elapsed_ms=2000.0)["outcome"] == "TIMEOUT"
+    assert model.negotiate([_p("drilling-optimization-agent", 4, 0.9)], elapsed_ms=2000.0)["outcome"] == "TIMEOUT"
     assert model.negotiate([])["outcome"] == "CONSENSUS"
 
 
@@ -371,13 +371,13 @@ def test_negotiation_refuses_an_unmatched_veto() -> None:
 def test_negotiation_refuses_out_of_range_tier() -> None:
     for tier in (0, 5, 99):
         with pytest.raises(ValueError, match="priority_tier"):
-            model.negotiate([_p("a", tier, 0.9)], [])
+            model.negotiate([_p("drilling-optimization-agent", tier, 0.9)], [])
 
 
 def test_negotiation_refuses_out_of_range_confidence() -> None:
     for confidence in (-1.0, 5.0):
         with pytest.raises(ValueError, match="confidence"):
-            model.negotiate([_p("a", 4, confidence)], [])
+            model.negotiate([_p("drilling-optimization-agent", 4, confidence)], [])
 
 
 def test_route_refuses_an_impossible_autonomy_level() -> None:
@@ -432,14 +432,59 @@ def test_qse_single_sample_with_window_is_still_actionable() -> None:
 
 
 def test_envelope_refuses_a_parameter_with_no_configured_limit() -> None:
-    """flow_rate resolves to a parameter name but the policy defines no ceiling for it."""
-    out = model.check_envelope({"flow_rate": 5000.0})
+    """A parameter the policy has no ceiling for is not certified, it is refused."""
+    out = model.check_envelope({"mud_weight_ppg": 15.0})
     assert out["passed"] is False
-    assert out["unverified_parameters"] == ["flow_rate"]
+    assert out["unverified_parameters"] == ["mud_weight_ppg"]
 
 
 def test_negotiation_refuses_a_winner_that_breaches_the_envelope() -> None:
-    proposals = [_p("x", 4, 0.95)]
+    proposals = [_p("drilling-optimization-agent", 4, 0.95)]
     proposals[0]["parameters"] = {"weight_on_bit": 300.0}
     with pytest.raises(ValueError, match="breaches the safety envelope"):
         model.negotiate(proposals, [])
+
+
+# --- regressions from the fourth audit pass (1.1.6) ----------------------
+
+
+def test_envelope_compares_flow_rate() -> None:
+    out = model.check_envelope({"flow_rate": 5000.0})
+    assert out["passed"] is False
+    assert out["hard_violation"] is True
+    assert out["unverified_parameters"] == []
+    assert any("flow rate" in v for v in out["violations"])
+    assert model.check_envelope({"flow_rate": 800.0})["passed"] is True
+
+
+def test_losses_escalate_with_size() -> None:
+    """Every loss used to sit at Advisory whatever its size."""
+    small = model.well_control_assess(pit_gain_bbl=-0.5)
+    medium = model.well_control_assess(pit_gain_bbl=-3.0)
+    large = model.well_control_assess(pit_gain_bbl=-6.0)
+    assert small["alert_level"] < medium["alert_level"] < large["alert_level"]
+    assert medium["alert_level"] == 2
+    assert large["alert_level"] == 3
+    assert large["alert_level"] < 4, "a well losing returns is not shut in"
+    for out in (small, medium, large):
+        assert out["classification"] == "LOST_CIRCULATION"
+        assert out["losses_detected"] is True
+
+
+def test_negotiation_refuses_an_unknown_agent() -> None:
+    with pytest.raises(ValueError, match="unknown agent id"):
+        model.negotiate([_p("phantom-safety-agent", 1, 0.99)], [])
+
+
+def test_negotiation_accepts_a_packaged_agent() -> None:
+    out = model.negotiate([_p("well-control-monitoring-agent", 1, 0.8)], [])
+    assert out["outcome"] == "CONSENSUS"
+
+
+def test_authored_values_are_declared_as_authored() -> None:
+    """A value that was not transcribed must say so, so nobody mistakes it for reviewed."""
+    from advisory_core import model as m
+    policy = m._load("src/policies/safety-envelope.yaml") or {}
+    declared = set(policy.get("authored_limits") or [])
+    assert "max_flow_rate_gpm" in declared
+    assert "losses.advisory_bbl" in declared and "losses.alert_bbl" in declared

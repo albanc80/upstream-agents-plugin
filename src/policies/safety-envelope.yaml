@@ -20,6 +20,10 @@ limits:
     max_rpm: 180
     max_standpipe_pressure_psi: 4000.0
     max_torque_ft_lbs: 15000.0
+    # AUTHORED, not transcribed: the reference implementation defines no flow ceiling, so this
+    # value did not come from it. 1200 gpm covers a mid-size rig; verify against the rig's pump
+    # schedule before use. Listed in authored_limits below.
+    max_flow_rate_gpm: 1200.0
     hard_violation: true
   wellbore:
     max_dls_per_100ft: 5.0
@@ -28,6 +32,13 @@ limits:
     h2s_alarm_ppm: 10.0
     hard_violation: false
     note: "H2S at or above the alarm halts regardless of proposal content."
+  losses:
+    # AUTHORED, not transcribed: the packaged contract has no loss threshold, so losses could not
+    # escalate with severity. This ladder mirrors the pit-gain thresholds (2 / 5 bbl) and stops at
+    # level 3 on purpose: a well losing returns is not shut in, it is treated for losses.
+    authored: true
+    advisory_bbl: 2.0
+    alert_bbl: 5.0
   probabilistic:
     min_data_quality_to_act: 0.95
     min_confidence_for_action: 0.75
@@ -50,6 +61,13 @@ order_of_evaluation:
 hard_violation_effect: >
   A hard violation forces the proposing agent to autonomy level 1 immediately
   (FR-154 in the engine) and is recorded on the rejection record.
+
+authored_limits:
+  # Values in this file that were authored here rather than transcribed from the reference
+  # implementation. They carry no pedigree and need a rig-specific answer before site use.
+  - max_flow_rate_gpm
+  - losses.advisory_bbl
+  - losses.alert_bbl
 
 channel_parameter_map:
   wob: weight_on_bit
