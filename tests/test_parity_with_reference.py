@@ -481,6 +481,43 @@ def test_negotiation_accepts_a_packaged_agent() -> None:
     assert out["outcome"] == "CONSENSUS"
 
 
+def test_flow_only_loss_is_not_monitor() -> None:
+    """A 200 gpm deficit with a steady pit used to read Monitor: the ladder only counted pit volume."""
+    out = model.well_control_assess(flow_diff_gpm=-200.0)
+    assert out["losses_detected"] is True
+    assert out["loss_basis"] == "flow_equivalent"
+    assert out["alert_level"] >= 2
+    assert out["classification"] == "LOST_CIRCULATION"
+    assert out["loss_equivalent_bbl"] == pytest.approx(200 / 42.0, abs=0.01)
+
+
+def test_a_large_flow_only_loss_reaches_well_control_alert() -> None:
+    out = model.well_control_assess(flow_diff_gpm=-400.0)
+    assert out["alert_level"] == 3
+    assert out["alert_level"] < 4, "a well losing returns is not shut in"
+
+
+def test_loss_basis_reports_both_signals() -> None:
+    out = model.well_control_assess(pit_gain_bbl=-6.0, flow_diff_gpm=-100.0)
+    assert out["loss_basis"] == "both"
+    assert out["loss_equivalent_bbl"] == 6.0
+
+
+def test_loss_note_names_the_level_actually_set() -> None:
+    """The note said 'escalated to the Advisory level' even when the level shown was 3."""
+    out = model.well_control_assess(pit_gain_bbl=-6.0)
+    note = " ".join(out["notes"])
+    assert out["alert_level"] == 3
+    assert "Advisory level" not in note
+    assert "level 3" in note
+    assert "authored ladder" in note
+
+
+def test_flow_only_loss_discloses_the_equivalent_basis() -> None:
+    note = " ".join(model.well_control_assess(flow_diff_gpm=-200.0)["notes"])
+    assert "equivalent" in note and "not a measured volume" in note
+
+
 def test_authored_values_are_declared_as_authored() -> None:
     """A value that was not transcribed must say so, so nobody mistakes it for reviewed."""
     from advisory_core import model as m
@@ -488,3 +525,4 @@ def test_authored_values_are_declared_as_authored() -> None:
     declared = set(policy.get("authored_limits") or [])
     assert "max_flow_rate_gpm" in declared
     assert "losses.advisory_bbl" in declared and "losses.alert_bbl" in declared
+    assert "losses.flow_equivalent_gpm_per_bbl" in declared

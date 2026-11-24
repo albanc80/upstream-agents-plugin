@@ -39,6 +39,9 @@ limits:
     authored: true
     advisory_bbl: 2.0
     alert_bbl: 5.0
+    # A flow deficit with a steady pit is still a loss. Converting gpm to barrels over one minute
+    # gives it the same scale as the volume ladder; it is an equivalent, not a measured volume.
+    flow_equivalent_gpm_per_bbl: 42.0
   probabilistic:
     min_data_quality_to_act: 0.95
     min_confidence_for_action: 0.75
@@ -68,6 +71,7 @@ authored_limits:
   - max_flow_rate_gpm
   - losses.advisory_bbl
   - losses.alert_bbl
+  - losses.flow_equivalent_gpm_per_bbl  # 42 gal/bbl over one minute, to size a flow-only loss
 
 channel_parameter_map:
   wob: weight_on_bit

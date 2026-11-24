@@ -36,6 +36,7 @@ CHANNEL_ALIASES = {
 COMPLETENESS_WINDOW_S = 60.0
 OUTLIER_Z_THRESHOLD = 3.5
 DOWNHOLE_NOMINAL_PERIOD_S = 30.0
+GPM_PER_BBL = 42.0  # US gallons per barrel; converts gpm to bbl/min
 OUT_OF_SEQUENCE_PENALTY = 0.4
 OUTLIER_PENALTY = 0.5
 DRIFT_PENALTY = 0.5
@@ -638,7 +639,19 @@ def well_control_assess(
     loss_cfg = safety_limits().get("losses", {}) or {}
     loss_advisory_bbl = float(loss_cfg.get("advisory_bbl", 2.0))
     loss_alert_bbl = float(loss_cfg.get("alert_bbl", 5.0))
-    loss_magnitude = max(-pit_gain_bbl, 0.0)
+    pit_loss_bbl = max(-pit_gain_bbl, 0.0)
+    # A flow deficit is a loss while the pit can still read steady: nulled, being topped up, or
+    # simply ahead of the trip-tank measurement. Convert it onto the same scale rather than letting
+    # a -200 gpm loss read as Monitor. AUTHORED basis: 42 US gal to the barrel, over one minute.
+    gpm_per_bbl = float(loss_cfg.get("flow_equivalent_gpm_per_bbl", GPM_PER_BBL))
+    flow_loss_bbl = max(-flow_diff_gpm, 0.0) / gpm_per_bbl
+    loss_magnitude = max(pit_loss_bbl, flow_loss_bbl)
+    loss_basis = (
+        "both" if pit_loss_bbl > 0 and flow_loss_bbl > 0
+        else "pit_volume" if pit_loss_bbl > 0
+        else "flow_equivalent" if flow_loss_bbl > 0
+        else "none"
+    )
     losses = pit_gain_bbl < 0.0 or flow_diff_gpm < 0.0
     escalated_for_losses = False
     if losses:
@@ -661,12 +674,24 @@ def well_control_assess(
         classification = "GAS_KICK" if gas_units_pct > background else "UNCONFIRMED_INFLUX"
 
     result_notes: list[str] = []
-    if escalated_for_losses:
-        result_notes.append(
-            "Losses detected (pit gain or flow differential negative). The packaged contract defines "
-            "no loss threshold, so this is escalated to the Advisory level instead of being reported "
-            "as normal. Treat as lost circulation and verify against the drilling programme."
+    if losses:
+        basis_text = {
+            "both": "pit volume and a flow deficit",
+            "pit_volume": "pit volume",
+            "flow_equivalent": "a flow deficit",
+        }.get(loss_basis, "a negative signal")
+        note = (
+            f"Losses detected ({basis_text}). The packaged contract defines no loss threshold, so an "
+            f"authored ladder is applied: this is level {level} ({_ALERT_NAMES.get(level, 'unknown')}), "
+            "not a normal well."
         )
+        if loss_basis in ("flow_equivalent", "both"):
+            note += (
+                f" The flow deficit was converted to an equivalent {flow_loss_bbl:.1f} bbl over one "
+                f"minute ({gpm_per_bbl:.0f} gal/bbl): that is an equivalent, not a measured volume."
+            )
+        note += " Treat as lost circulation and verify against the drilling programme."
+        result_notes.append(note)
     if level >= 3 and classification == "UNCONFIRMED_INFLUX":
         result_notes.append(
             "Escalation came from gas alone; no flow differential or pit gain was supplied to "
@@ -686,6 +711,8 @@ def well_control_assess(
         ),
         "regulatory_notification_required": level >= 3,
         "losses_detected": losses,
+        "loss_basis": loss_basis,
+        "loss_equivalent_bbl": round(loss_magnitude, 2),
         "notes": result_notes,
         "authority": "The Driller and Drilling Supervisor decide shut-in. This tool detects and escalates.",
         "thresholds_used": {
@@ -693,5 +720,6 @@ def well_control_assess(
             "well_control_alert": kp["well_control_alert"], "emergency": kp["emergency"],
             "pit_gain_advisory_bbl": pg["advisory_bbl"], "pit_gain_emergency_bbl": pg["emergency_bbl"],
             "background_gas_pct": background,
+            "loss_advisory_bbl": loss_advisory_bbl, "loss_alert_bbl": loss_alert_bbl,
         },
     }
