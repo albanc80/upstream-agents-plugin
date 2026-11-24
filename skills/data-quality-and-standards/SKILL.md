@@ -48,3 +48,15 @@ Six checks produce that score:
 Without the advisory server, apply the checks qualitatively and label the result an inspection,
 not a score. First try the shell fallback in `upstream-ops`: `--call qse_score_sample` returns the
 same JSON the tool would. Never emit a number between 0 and 1 that you did not receive from the tool.
+
+## Calibration check — do this before quoting any number
+
+Every threshold in this pack is either transcribed from a reference implementation, authored here,
+or an **industry default standing in for this well's or this operator's value**. Call
+`list_calibration` and include the defaults in force in your answer, in plain words: *"these are
+industry averages, not your well's numbers."*
+
+Never present a default as a site value, a company SOP, or a regulatory limit. If the user needs a
+number that is theirs — kick tolerance, loss classes, flow or pressure ceilings, mud weight window,
+stuck-pipe weighting, design factors — say what the default is, that it is a default, and what to
+replace it from.

@@ -126,6 +126,18 @@ def _data_dir() -> Path:
     return root
 
 
+def _calibrated(payload: dict[str, Any]) -> dict[str, Any]:
+    """Stamp every answer with the values standing in for site/SOP numbers.
+
+    A default that only lives in a policy file is invisible to the person reading the answer. The
+    caller must be able to see that this number is an industry default and is theirs to replace.
+    """
+    payload.setdefault("defaults_in_use", model.defaults_in_use())
+    payload.setdefault("calibration_note", model.calibration_note())
+    payload.setdefault("site_validated", model.envelope_site_validated())
+    return payload
+
+
 def _audit_path() -> Path:
     return _data_dir() / "audit.jsonl"
 
@@ -179,6 +191,23 @@ def list_capabilities() -> dict[str, Any]:
             "Advisory only. No tool writes a setpoint, commands a BOP or choke, or executes a "
             "recommendation. Shut-in authority rests with the Driller and Drilling Supervisor."
         ),
+    }
+
+
+@mcp.tool()
+def list_calibration() -> dict[str, Any]:
+    """List every value standing in for a site, well or SOP answer, and what to replace it from.
+
+    Call this before quoting a threshold to a driller, and repeat the defaults in force in your
+    answer: they are industry averages, not this well's numbers.
+    """
+    cal = model.calibration()
+    return {
+        "must_update_before_site_use": bool(cal.get("must_update_before_site_use", True)),
+        "defaults": cal.get("defaults", {}),
+        "defaults_in_use": model.defaults_in_use(),
+        "note": model.calibration_note(),
+        "site_validated": model.envelope_site_validated(),
     }
 
 
@@ -252,7 +281,9 @@ def compute(formula: str, arguments: dict[str, float]) -> dict[str, Any]:
         result = dict(result.__dict__)
     elif isinstance(result, tuple):
         result = list(result)
-    return {"formula": formula, "arguments": clean, "value": result, "unit": UNITS.get(formula)}
+    return _calibrated(
+        {"formula": formula, "arguments": clean, "value": result, "unit": UNITS.get(formula)}
+    )
 
 
 @mcp.tool()
@@ -274,7 +305,17 @@ def qse_score_sample(
     interpreting the value. Pass the observation window you have; the tool keeps no history.
     """
     try:
-        return model.score_sample(            channel,            value,            history=history,            sequence_number=sequence_number,            last_sequence=last_sequence,            redundant_values=redundant_values,            samples_in_window=samples_in_window,            window_seconds=window_seconds,            publish_interval_s=publish_interval_s,        )
+        return _calibrated(model.score_sample(
+            channel,
+            value,
+            history=history,
+            sequence_number=sequence_number,
+            last_sequence=last_sequence,
+            redundant_values=redundant_values,
+            samples_in_window=samples_in_window,
+            window_seconds=window_seconds,
+            publish_interval_s=publish_interval_s,
+        ))
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -314,7 +355,7 @@ def route_autonomy(level: int, confidence: float) -> dict[str, Any]:
     the change, never that anything ran.
     """
     try:
-        return model.route(level, confidence)
+        return _calibrated(model.route(level, confidence))
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -333,7 +374,7 @@ def negotiate(
     winner, every rejection, generated alternatives and the outcome.
     """
     try:
-        return model.negotiate(proposals, vetoes, window_ms=window_ms, elapsed_ms=elapsed_ms)
+        return _calibrated(model.negotiate(proposals, vetoes, window_ms=window_ms, elapsed_ms=elapsed_ms))
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -359,7 +400,7 @@ def well_control_assess(
     so a mistyped argument name would otherwise read as a confident all-clear.
     """
     try:
-        return model.well_control_assess(
+        return _calibrated(model.well_control_assess(
             pit_gain_bbl=pit_gain_bbl,
             flow_diff_gpm=flow_diff_gpm,
             gas_units_pct=gas_units_pct,
@@ -368,7 +409,7 @@ def well_control_assess(
             hole_diameter_in=hole_diameter_in,
             pipe_od_in=pipe_od_in,
             kick_tolerance_volume_bbl=kick_tolerance_volume_bbl,
-        )
+        ))
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -448,6 +489,7 @@ _CLI_TOOLS: dict[str, Any] = {
     "list_capabilities": list_capabilities,
     "list_channels": list_channels,
     "list_formulas": list_formulas,
+    "list_calibration": list_calibration,
     "compute": compute,
     "qse_score_sample": qse_score_sample,
     "check_safety_envelope": check_safety_envelope,

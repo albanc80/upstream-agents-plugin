@@ -44,7 +44,7 @@ an **industry-average default standing in for your policy**. Defaults are listed
 |---|---|---|---|
 | `pit_gain.kick_tolerance_fraction` | 0.5 | half the section's kick-tolerance volume | well-control policy, per section |
 | `losses.seepage_max_bbl_hr` / `partial_max_bbl_hr` | 10 / 50 | published agreement on seepage; midpoint of 30/50/100 | operator loss-classification standard |
-| `max_flow_rate_gpm` | 500 | conservative operator default, below many rigs' pump rate | the rig's pump schedule — expect to raise |
+| `max_flow_rate_gpm` | 1000 | operator placeholder, not derived from a pump schedule | rig pump schedule |
 | `min_data_quality_to_act` | 0.95 | **unverified** - measurement deferred, no live rig data available yet | per-channel distributions from recorded data |
 | `mud_weight_window` | 9.0-14.5 ppg | fixed window; wrong basis for water, brine and HPHT | pore pressure + overbalance to frac gradient minus margin, per section |
 
@@ -78,7 +78,7 @@ Currently global rules of thumb, which is wrong for at least half of them:
 | `max_torque_ft_lbs` 15000 | Likely below make-up torque for 5-inch+ connections - would block normal work |
 | `mud_weight_window` 9.0-14.5 ppg | Blocks water/brine and HPHT alike. Should be pore pressure + overbalance to frac gradient minus margin, per depth |
 | `max_dls_per_100ft` 5.0 | Unconventional curves are planned above this; casing/ESP intervals need less |
-| `max_flow_rate_gpm` 500 | **Authored here** - the reference defines none. Deliberately conservative: it will refuse high-rate proposals until replaced |
+| `max_flow_rate_gpm` 1000 | **Authored here** - the reference defines none. A placeholder that can still refuse high-rate proposals until replaced |
 | `min_data_quality_to_act` 0.95 | A feed dropping 3 samples/min fails it. Measure from recorded rig data, per channel, with hysteresis; for well control, low quality should escalate rather than block |
 | `min_confidence_for_action` 0.75 | Meaningless without a reliability curve on held-out cases. Until then, require human confirmation for every parameter change |
 | `h2s_alarm_ppm` 10 | Common first alarm; BSEE 30 CFR 250.490 builds required actions around 20 ppm. Confirm the jurisdiction before calling 10 "regulatory" |

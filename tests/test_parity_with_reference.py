@@ -456,8 +456,8 @@ def test_envelope_compares_flow_rate() -> None:
     assert out["hard_violation"] is True
     assert out["unverified_parameters"] == []
     assert any("flow rate" in v for v in out["violations"])
-    assert model.check_envelope({"flow_rate": 400.0})["passed"] is True
-    assert model.check_envelope({"flow_rate": 600.0})["passed"] is False
+    assert model.check_envelope({"flow_rate": 800.0})["passed"] is True
+    assert model.check_envelope({"flow_rate": 1200.0})["passed"] is False
 
 
 def test_losses_escalate_with_size() -> None:

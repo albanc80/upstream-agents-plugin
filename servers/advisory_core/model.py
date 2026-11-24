@@ -346,7 +346,7 @@ def check_envelope(
         ("rpm", float(equipment.get("max_rpm", 180)), "RPM", ""),
         ("standpipe_pressure", float(equipment.get("max_standpipe_pressure_psi", 4000.0)), "SPP", "psi"),
         ("torque", float(equipment.get("max_torque_ft_lbs", 15000.0)), "torque", "ft-lbs"),
-        ("flow_rate", float(equipment.get("max_flow_rate_gpm", 500.0)), "flow rate", "gpm"),
+        ("flow_rate", float(equipment.get("max_flow_rate_gpm", 1000.0)), "flow rate", "gpm"),
     ]
     for key, limit, label, unit in checks:
         asked = parameters.get(key)

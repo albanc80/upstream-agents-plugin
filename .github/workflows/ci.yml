@@ -37,6 +37,17 @@ jobs:
             echo "expected an error on an unknown tool"; exit 1
           fi
 
+      - name: Every answer names the defaults in force
+        run: |
+          uv run --script servers/advisory_core/main.py --call list_calibration '{}' \
+            | grep -q '"must_update_before_site_use": true'
+          for call in \
+            'compute {"formula":"maasp_psi","arguments":{"max_mud_weight_ppg":14.5,"current_mud_weight_ppg":12,"shoe_tvd_ft":5000}}' \
+            'well_control_assess {"pit_gain_bbl":3}'; do
+            set -- $call; tool=$1; shift
+            uv run --script servers/advisory_core/main.py --call "$tool" "$*" | grep -q '"calibration_note"'
+          done
+
       - name: Audit trail survives an update
         run: |
           # The trail must not be written inside the install folder, which is replaced on upgrade.

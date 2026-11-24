@@ -52,3 +52,15 @@ Without the advisory server you may still run the shell fallback in `upstream-op
 may not produce a probability, a level, an MAASP, a kill weight or a margin.
 
 See `references/kill-sheet.md` for the quantity definitions and what each one needs.
+
+## Calibration check — do this before quoting any number
+
+Every threshold in this pack is either transcribed from a reference implementation, authored here,
+or an **industry default standing in for this well's or this operator's value**. Call
+`list_calibration` and include the defaults in force in your answer, in plain words: *"these are
+industry averages, not your well's numbers."*
+
+Never present a default as a site value, a company SOP, or a regulatory limit. If the user needs a
+number that is theirs — kick tolerance, loss classes, flow or pressure ceilings, mud weight window,
+stuck-pipe weighting, design factors — say what the default is, that it is a default, and what to
+replace it from.

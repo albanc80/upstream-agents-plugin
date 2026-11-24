@@ -21,10 +21,9 @@ limits:
     max_standpipe_pressure_psi: 4000.0
     max_torque_ft_lbs: 15000.0
     # AUTHORED, not transcribed: the reference implementation defines no flow ceiling. Set to 500
-    # gpm as a conservative default — lower than many rigs actually pump, so it will refuse
-    # legitimate high-rate proposals until replaced with the rig's own ceiling. Listed in
-    # authored_limits and in the calibration block.
-    max_flow_rate_gpm: 500.0
+    # gpm as a default. Still below what many rigs pump, so it can refuse high-rate proposals until
+    # replaced with the rig's own ceiling. Listed in authored_limits and in the calibration block.
+    max_flow_rate_gpm: 1000.0
     hard_violation: true
   wellbore:
     max_dls_per_100ft: 5.0
@@ -98,9 +97,9 @@ calibration:
       basis: "midpoint of the 30 / 50 / 100 bbl/hr figures in circulation"
       update_from: "operator loss-classification standard"
     max_flow_rate_gpm:
-      value: 500.0
-      basis: "conservative ceiling set by the operator; below many rigs' actual pump rate"
-      update_from: "rig pump schedule — expect to raise this"
+      value: 1000.0
+      basis: "operator placeholder; not derived from a rig pump schedule"
+      update_from: "rig pump schedule — min(pump liner, surface equipment, relief setting) minus margin"
     min_data_quality_to_act:
       value: 0.95
       basis: "unverified: needs per-channel distributions from recorded rig data"
