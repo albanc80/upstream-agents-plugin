@@ -140,6 +140,7 @@ def score_sample(
     act_floor = float(floors.get("min_data_quality_to_act", 0.95))
 
     flags: list[str] = []
+    unverified_checks: list[str] = []
     quality = 1.0
     history = list(history or [])
     ground_truth = value
@@ -173,6 +174,8 @@ def score_sample(
     period = publish_interval_s if spec.source == "surface" else DOWNHOLE_NOMINAL_PERIOD_S
     period = max(period, 1e-3)
     expected = max(1, round(min(window_seconds, max(window_seconds, period)) / period))
+    if samples_in_window is None:
+        unverified_checks.append("completeness")
     if samples_in_window is not None:
         completeness = min(1.0, samples_in_window / expected)
         if completeness < INCOMPLETE_THRESHOLD:
@@ -180,13 +183,18 @@ def score_sample(
         quality *= completeness
 
     quality = max(0.0, min(1.0, quality))
+    if unverified_checks:
+        flags.append("UNVERIFIED_CHECKS")
     return {
         "channel": channel,
         "unit": spec.unit,
         "quality_score": round(quality, 4),
         "flags": flags or ["OK"],
         "ground_truth": ground_truth,
-        "is_actionable": quality > act_floor,
+        # A perfect score from checks that never ran is not a clean bill of health: with no
+        # history there is nothing to compare against, so the sample is not certifiable.
+        "is_actionable": quality > act_floor and not unverified_checks,
+        "unverified_checks": unverified_checks,
         "act_floor": act_floor,
         "expected_samples": expected,
         "hard_bounds": [spec.hard_min, spec.hard_max],
@@ -261,7 +269,9 @@ def check_envelope(
     unverified: list[str] = []
     for raw_name, raw_value in parameters.items():
         key = canonical_parameter(raw_name)
-        if key is None:
+        # Resolvable but unlimited (flow_rate, say) is as unevaluable as unresolvable: the gate
+        # would compare it against nothing and pass it.
+        if key is None or key not in _LIMIT_KEYS:
             unverified.append(str(raw_name))
         else:
             resolved[key] = float(raw_value)
@@ -505,6 +515,21 @@ def negotiate(
     else:
         outcome = "DEADLOCK"
         rationale = "All contenders rejected; no alternative survived."
+
+    # negotiate is callable on its own, so it cannot assume the caller ran the envelope first. A
+    # winner that breaches a hard limit would otherwise be returned as CONSENSUS.
+    if winner is not None and winner.get("parameters"):
+        try:
+            verdict = check_envelope(dict(winner["parameters"]), action_type="parameter_change")
+        except TypeError:
+            verdict = check_envelope(dict(winner["parameters"]))
+        if verdict.get("hard_violation"):
+            raise ValueError(
+                "the winning proposal breaches the safety envelope: "
+                + "; ".join(verdict.get("violations", []))
+                + f" (proposed by {winner.get('agent_id')}). A result that would breach a hard "
+                "limit is not a resolution, so the round is refused."
+            )
 
     return {
         "outcome": outcome,

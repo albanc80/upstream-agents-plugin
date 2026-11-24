@@ -26,7 +26,8 @@ def test_pressure_and_gradient() -> None:
     assert pm.pressure_gradient_psi_per_ft(10.0) == pytest.approx(0.52)
     assert pm.hydrostatic_pressure_psi(10.0, 10_000.0) == pytest.approx(5200.0)
     assert pm.mud_weight_from_pressure_ppg(5200.0, 10_000.0) == pytest.approx(10.0)
-    assert pm.mud_weight_from_pressure_ppg(100.0, 0.0) == 0.0
+    with pytest.raises(ValueError, match="positive true vertical depth"):
+        pm.mud_weight_from_pressure_ppg(100.0, 0.0)
 
 
 def test_buoyancy_factor() -> None:
@@ -395,3 +396,50 @@ def test_route_never_claims_execution() -> None:
     out = model.route(2, 0.9)
     assert out["routing"] == "auto_execute"
     assert out["pack_executes"] is False
+
+
+# --- regressions from the third audit pass (1.1.5) -----------------------
+
+
+def test_pressure_formulas_refuse_impossible_inputs() -> None:
+    with pytest.raises(ValueError, match="positive mud weight"):
+        pm.hydrostatic_pressure_psi(-100.0, 10_000.0)
+    with pytest.raises(ValueError, match="negative"):
+        pm.hydrostatic_pressure_psi(12.0, -100.0)
+    with pytest.raises(ValueError, match="negative"):
+        pm.mud_weight_from_pressure_ppg(-500.0, 10_000.0)
+
+
+def test_maasp_refuses_a_negative_margin() -> None:
+    """A current mud weight above the maximum means the shoe margin is gone, not -260 psi."""
+    with pytest.raises(ValueError, match="exceeds the maximum"):
+        pm.maasp_psi(14.5, 15.0, 5_000.0)
+    assert pm.maasp_psi(14.5, 12.0, 5_000.0) == pytest.approx(650.0)
+
+
+def test_qse_bare_sample_is_not_certifiable() -> None:
+    """Nothing but a value means only the range check ran; that is not a clean bill of health."""
+    out = model.score_sample("flow_out", 1.0)
+    assert out["is_actionable"] is False
+    assert "UNVERIFIED_CHECKS" in out["flags"]
+    assert out["unverified_checks"] == ["completeness"]
+
+
+def test_qse_single_sample_with_window_is_still_actionable() -> None:
+    out = model.score_sample("wob", 25.0, samples_in_window=60)
+    assert out["is_actionable"] is True
+    assert out["flags"] == ["OK"]
+
+
+def test_envelope_refuses_a_parameter_with_no_configured_limit() -> None:
+    """flow_rate resolves to a parameter name but the policy defines no ceiling for it."""
+    out = model.check_envelope({"flow_rate": 5000.0})
+    assert out["passed"] is False
+    assert out["unverified_parameters"] == ["flow_rate"]
+
+
+def test_negotiation_refuses_a_winner_that_breaches_the_envelope() -> None:
+    proposals = [_p("x", 4, 0.95)]
+    proposals[0]["parameters"] = {"weight_on_bit": 300.0}
+    with pytest.raises(ValueError, match="breaches the safety envelope"):
+        model.negotiate(proposals, [])

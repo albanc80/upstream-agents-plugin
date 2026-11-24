@@ -9,7 +9,8 @@
         "${CLAUDE_PLUGIN_ROOT}/servers/advisory_core/main.py"
       ],
       "env": {
-        "PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+        "PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "ADVISORY_DATA_DIR": "${CLAUDE_PLUGIN_DATA}"
       }
     }
   }

@@ -10,7 +10,10 @@
         "--script",
         "${PLUGIN_ROOT}/servers/advisory_core/main.py"
       ],
-      "cwd": "${PLUGIN_ROOT}"
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "ADVISORY_DATA_DIR": "${CLAUDE_PLUGIN_DATA}"
+      }
     }
   }
 }

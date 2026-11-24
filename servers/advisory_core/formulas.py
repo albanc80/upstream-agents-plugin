@@ -28,14 +28,29 @@ def pressure_gradient_psi_per_ft(mud_weight_ppg: float) -> float:
 
 
 def hydrostatic_pressure_psi(mud_weight_ppg: float, tvd_ft: float) -> float:
-    """HP = MW(ppg) x 0.052 x TVD(ft)."""
+    """HP = MW(ppg) x 0.052 x TVD(ft).
+
+    A non-positive mud weight is not a fluid: it would return a negative pressure that reads as
+    a valid number.
+    """
+    if mud_weight_ppg <= 0:
+        raise ValueError(f"hydrostatic pressure needs a positive mud weight; got {mud_weight_ppg} ppg")
+    if tvd_ft < 0:
+        raise ValueError(f"hydrostatic pressure needs a non-negative TVD; got {tvd_ft} ft")
     return mud_weight_ppg * PRESSURE_GRADIENT_CONSTANT * tvd_ft
 
 
 def mud_weight_from_pressure_ppg(pressure_psi: float, tvd_ft: float) -> float:
-    """MW(ppg) = P / (0.052 x TVD). Returns 0 for non-positive TVD."""
+    """MW(ppg) = P / (0.052 x TVD).
+
+    A non-positive TVD has no answer; returning 0.0 ppg would present it as a mud weight.
+    """
     if tvd_ft <= 0:
-        return 0.0
+        raise ValueError(
+            f"mud weight from pressure needs a positive true vertical depth; got tvd_ft={tvd_ft}"
+        )
+    if pressure_psi < 0:
+        raise ValueError(f"pressure cannot be negative; got {pressure_psi} psi")
     return pressure_psi / (PRESSURE_GRADIENT_CONSTANT * tvd_ft)
 
 
@@ -63,7 +78,18 @@ def equivalent_circulating_density_ppg(
 
 
 def maasp_psi(max_mud_weight_ppg: float, current_mud_weight_ppg: float, shoe_tvd_ft: float) -> float:
-    """MAASP = 0.052 x (MaxMW - CurrentMW) x ShoeTVD."""
+    """MAASP = 0.052 x (MaxMW - CurrentMW) x ShoeTVD.
+
+    A current mud weight above the maximum gives a negative MAASP, which means the shoe margin is
+    already gone — that is a well-control condition, not a pressure to report quietly.
+    """
+    if current_mud_weight_ppg > max_mud_weight_ppg:
+        raise ValueError(
+            f"current mud weight {current_mud_weight_ppg} ppg exceeds the maximum "
+            f"{max_mud_weight_ppg} ppg: MAASP would be negative, i.e. no remaining shoe margin"
+        )
+    if shoe_tvd_ft <= 0:
+        raise ValueError(f"MAASP needs a positive shoe TVD; got {shoe_tvd_ft} ft")
     return PRESSURE_GRADIENT_CONSTANT * (max_mud_weight_ppg - current_mud_weight_ppg) * shoe_tvd_ft
 
 

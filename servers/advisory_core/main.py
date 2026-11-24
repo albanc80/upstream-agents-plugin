@@ -97,7 +97,9 @@ def _resolve_data_dir() -> tuple[Path, bool]:
     """
     for var in ("ADVISORY_DATA_DIR", "PLUGIN_DATA", "CLAUDE_PLUGIN_DATA"):
         value = os.environ.get(var)
-        if value:
+        # A client that does not substitute ${...} leaves the literal placeholder behind; treating
+        # it as a path would scatter the trail into a folder named after the expression.
+        if value and "${" not in value:
             return Path(value), False
     if os.name == "nt":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
@@ -230,15 +232,21 @@ def compute(formula: str, arguments: dict[str, float]) -> dict[str, Any]:
     """
     fn = FORMULAS.get(formula)
     if fn is None:
-        raise ValueError(
+        raise ToolError(
             f"unknown formula {formula!r}; call list_formulas() for the {len(FORMULAS)} available"
         )
-    clean = {k: float(v) for k, v in (arguments or {}).items()}
+    try:
+        clean = {k: float(v) for k, v in (arguments or {}).items()}
+    except (TypeError, ValueError) as exc:
+        raise ToolError(f"{formula}: arguments must be a mapping of numbers ({exc})") from exc
     try:
         result = fn(**clean)
+    except TypeError as exc:
+        # Missing or extra arguments, or a non-mapping `arguments`, must name the problem rather
+        # than surface as "Error executing tool compute".
+        accepted = list(inspect.signature(fn).parameters)
+        raise ToolError(f"{formula}: {exc}. Accepted arguments: {accepted}") from exc
     except ValueError as exc:
-        # A formula that refuses its inputs (an impossible depth, say) must reach the client as a
-        # readable refusal, not a traceback.
         raise ToolError(f"{formula}: {exc}") from exc
     if hasattr(result, "__dict__"):
         result = dict(result.__dict__)
@@ -265,17 +273,10 @@ def qse_score_sample(
     A sample below the 0.95 floor is not actionable: describe the defect instead of
     interpreting the value. Pass the observation window you have; the tool keeps no history.
     """
-    return model.score_sample(
-        channel,
-        value,
-        history=history,
-        sequence_number=sequence_number,
-        last_sequence=last_sequence,
-        redundant_values=redundant_values,
-        samples_in_window=samples_in_window,
-        window_seconds=window_seconds,
-        publish_interval_s=publish_interval_s,
-    )
+    try:
+        return model.score_sample(            channel,            value,            history=history,            sequence_number=sequence_number,            last_sequence=last_sequence,            redundant_values=redundant_values,            samples_in_window=samples_in_window,            window_seconds=window_seconds,            publish_interval_s=publish_interval_s,        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()
