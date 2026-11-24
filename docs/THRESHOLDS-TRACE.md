@@ -87,7 +87,7 @@ open.
 | `max_rpm` 180 | `config.py:107` |
 | `max_standpipe_pressure_psi` 4000.0 | `config.py:108` |
 | `max_torque_ft_lbs` 15000.0 | `config.py:109` |
-| `max_flow_rate_gpm` 1200.0 | **authored here** — the reference defines none |
+| `max_flow_rate_gpm` 500.0 | **authored here** — the reference defines none; conservative operator default |
 | `losses.advisory_bbl` 2.0 / `alert_bbl` 5.0 | **authored here** — mirrors the pit-gain ladder; reference defines none |
 | `losses.flow_equivalent_gpm_per_bbl` 42.0 | **authored here** — sizes a flow-only loss as bbl over one minute |
 | `max_dls_per_100ft` 5.0 | `config.py:110` |
