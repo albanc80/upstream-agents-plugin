@@ -16,18 +16,18 @@ closed, each with a regression test.
 
 | Was | Now |
 |---|---|
-| Losses lowered the kick score and read Normal | Masses floored at 0. Losses follow their own ladder (2 bbl Advisory, 5 bbl Alert), classified `LOST_CIRCULATION` |
-| A loss with gas or excess flow read as a plain loss | Escalates to **level 4**, classified `UNDERGROUND_FLOW_SUSPECTED` - the underground-flow signature |
+| Losses lowered the kick score and read Normal | Masses floored at 0. Losses follow their own ladder (2 bbl Advisory, 5 bbl Alert) and their level is the more severe of volume and **rate**: a 57 bbl/hr loss is Alert, not Monitor |
+| A loss with gas or excess flow read as a plain loss | Escalates to **level 4**, classified `UNDERGROUND_FLOW_SUSPECTED` - but only when the gas is itself advisory-grade, so trace gas on a seeping well no longer raises an Emergency |
 | `weight_on_bit` bypassed the envelope; unknown names passed | Fails closed: channel ids and unit suffixes resolve to their limits; anything unresolvable - **or resolvable with no configured limit** - is refused as uncertifiable |
 | Mud weight was never checked, only ECD | `mud_weight` is checked against the 9.0-14.5 ppg window in its own right |
-| Emergency returned `classification: NORMAL` | An escalation is never labelled Normal; classification comes from the same evidence as the level |
+| Emergency returned `classification: NORMAL` | No escalation is labelled Normal, at any level. The label names the cause: `GAS_INFLUX_SUSPECTED`, `FLOW_ANOMALY`, `PWD_ANOMALY`, `PIT_GAIN_UNEXPLAINED`, `LOST_CIRCULATION` |
 | 2.00 bbl was Monitor but 2.01 bbl was Alert | Volume overrides compare `>=`; the autonomy ceiling is inclusive at 0.60 too |
 | 0.4% gas - below the 0.5% background - still added mass | Background is **subtracted**: sub-background gas contributes nothing |
 | Gas and flow combined by `max()`, so agreement earned nothing | Combined as noisy-OR: 2% gas with +5 gpm now outranks gas alone |
-| One signal alone reached Emergency (PWD 3 sigma, 5 bbl, 10 gpm) | PWD alone is capped at Alert, gas alone at Advisory. Emergency needs corroboration or a volume override |
+| One signal alone reached Emergency (PWD 3 sigma, 5 bbl, 10 gpm) | PWD alone tops out at Alert (score 0.60, level 3, agreeing), gas alone at Advisory (0.40, level 2). Emergency needs corroboration or a volume override |
 | A bare QSE sample scored 1.0 and was actionable | `UNVERIFIED_CHECKS`, not actionable, when no observation window is supplied |
 | 57/60 samples = 0.95 was flagged OK but not actionable | The floor is inclusive at its own value |
-| `kick_probability` read as a calibrated probability | Primary field is **`kick_score`** (`kick_probability` kept as a deprecated alias). A positive flow check with pumps off forces level 4 whatever the score |
+| `kick_probability` read as a calibrated probability | Primary field is **`kick_score`** (`kick_probability` kept as a deprecated alias). A positive flow check with pumps off forces level 4 whatever the score: `flow_check_pumps_off`, with `flow_check_positive` accepted as an alias |
 
 If any of these is still misbehaving, that is a defect - say so and it gets fixed, not debated.
 
@@ -60,6 +60,11 @@ of `site_validated: false`.
 | Is the 0.02 EMA on pit baseline acceptable? | Still present. At 1 Hz that is a ~50 s time constant, so a slow gain is absorbed into the reference. **Recommend freezing the reference at last known-good state instead - confirm.** |
 
 ### 2.2 Loss classes
+
+A pit volume alone carries no time basis, so a volume-only loss is reported as
+`unclassified_no_rate` rather than being given a rate class it cannot have. Supply the flow
+differential (or a duration) to get a class; the level then follows whichever of volume or rate is
+more severe.
 
 Authored boundaries: seepage < 10 bbl/hr, partial 10-50 bbl/hr, severe >= 50 bbl/hr; losses cap at
 level 3 (a losing well is treated, not shut in); loss plus any gain goes to level 4.

@@ -671,12 +671,17 @@ def well_control_assess(
     # A single signal must not carry the highest consequence on its own: PWD is capped at Alert and
     # gas at Advisory, so an Emergency needs corroboration or an explicit volume override. Pit totals
     # land on exact tenths, so the volume overrides compare with >= rather than >.
-    gas_only = m3_gas > 0 and m2 == 0.0 and m3_flow == 0.0
-    pwd_only = m1 > 0 and m2 == 0.0 and m3 == 0.0
+    # "Only" means no other evidence at all: a loss is evidence too, so a loss plus gas is not a
+    # gas-only case and must not inherit the gas cap.
+    losses_present = pit_gain_bbl < 0.0 or flow_diff_gpm < 0.0
+    gas_only = m3_gas > 0 and m2 == 0.0 and m3_flow == 0.0 and not losses_present
+    pwd_only = m1 > 0 and m2 == 0.0 and m3 == 0.0 and not losses_present
+    # Each cap is set AT the threshold that signal may reach, so the reported score and the level
+    # agree: PWD alone tops out at Alert (0.60), gas alone at Advisory (0.40), no further.
     if pwd_only:
-        probability = min(probability, float(kp["well_control_alert"]) - 1e-9)
+        probability = min(probability, float(kp["well_control_alert"]))
     if gas_only:
-        probability = min(probability, float(kp["advisory"]) + (float(kp["well_control_alert"]) - float(kp["advisory"])) / 2)
+        probability = min(probability, float(kp["advisory"]))
 
     if flow_check_pumps_off:
         # Evidence outranks the score: a positive flow check with pumps off is a shut-in proposal
@@ -720,23 +725,34 @@ def well_control_assess(
     loss_rate_bbl_hr = max(-flow_diff_gpm, 0.0) * 60.0 / gpm_per_bbl
     seepage_max = float(loss_cfg.get("seepage_max_bbl_hr", 10.0))
     partial_max = float(loss_cfg.get("partial_max_bbl_hr", 50.0))
-    if losses and not flow_check_pumps_off:
-        target = 3 if loss_magnitude >= loss_alert_bbl else (2 if loss_magnitude >= loss_advisory_bbl else 1)
-        if level < target:
-            level = target
-            escalated_for_losses = True
-        if loss_rate_bbl_hr >= partial_max:
-            loss_class = "severe"
-        elif loss_rate_bbl_hr >= seepage_max or loss_magnitude >= loss_advisory_bbl:
-            loss_class = "partial"
+    if losses:
+        # A volume has no time basis, so it cannot be given a rate class: say so rather than guess.
+        if flow_diff_gpm < 0.0:
+            loss_class = (
+                "severe" if loss_rate_bbl_hr >= partial_max
+                else "partial" if loss_rate_bbl_hr >= seepage_max
+                else "seepage"
+            )
         else:
-            loss_class = "seepage"
+            loss_class = "unclassified_no_rate"
+        # The level follows the more severe of volume and rate: a severe loss rate at Monitor would
+        # contradict the class in the same response.
+        by_volume = 3 if loss_magnitude >= loss_alert_bbl else (2 if loss_magnitude >= loss_advisory_bbl else 1)
+        by_rate = {"severe": 3, "partial": 2, "seepage": 1}.get(loss_class, 1)
+        if not flow_check_pumps_off:
+            target = max(by_volume, by_rate)
+            if level < target:
+                level = target
+                escalated_for_losses = True
     else:
         loss_class = "none"
 
     # Losses plus any sign of influx is the underground-flow / loss-induced-kick signature. Neither
     # signal alone justifies it, and treating the pair as a plain loss is how it gets missed.
-    loss_then_influx = losses and (max(gas_units_pct - background, 0.0) > 0 or flow_diff_gpm > 0)
+    # Trace gas above background is not influx evidence: requiring an advisory-grade gas mass (or an
+    # actual flow gain) stops a seeping well from raising Emergency proposals on normal background.
+    gas_evidence = m3_gas >= float(kp["advisory"])
+    loss_then_influx = losses and (gas_evidence or flow_diff_gpm > 0)
     if loss_then_influx:
         level = 4
 
@@ -763,29 +779,53 @@ def well_control_assess(
     elif loss_then_influx:
         classification = "UNDERGROUND_FLOW_SUSPECTED"
     elif pit_gain_bbl > 0.5 and flow_diff_gpm > 0:
-        classification = "GAS_KICK" if gas_units_pct > background else "WATER_KICK"
+        classification = "GAS_KICK" if gas_excess > 0 else "WATER_KICK"
     elif losses:
         # Any negative gain is a loss; the size decides the level, not the classification.
         classification = "LOST_CIRCULATION"
     else:
         classification = "NORMAL"
 
-    # Invariant: an escalation is never labelled Normal. Gas with no flow or pit evidence is a
-    # gas influx that the supplied channels cannot confirm, not a normal well.
-    if level >= 3 and classification == "NORMAL":
-        classification = "GAS_KICK" if gas_units_pct > background else "UNCONFIRMED_INFLUX"
+    # Invariant: an escalation is never labelled Normal, at any level. Naming a live escalation
+    # NORMAL makes the label contradict the level it sits beside.
+    if level >= 1 and classification == "NORMAL":
+        if m3_gas > 0:
+            classification = "GAS_INFLUX_SUSPECTED"
+        elif m3_flow > 0:
+            classification = "FLOW_ANOMALY"
+        elif m1 > 0:
+            classification = "PWD_ANOMALY"
+        elif m2 > 0:
+            classification = "PIT_GAIN_UNEXPLAINED"
+        else:
+            classification = "UNCONFIRMED_INFLUX"
 
     result_notes: list[str] = []
-    if losses:
+    if flow_check_pumps_off:
+        result_notes.append(
+            "A positive flow check with pumps off is evidence in its own right: the level comes from "
+            "that check, not from the fused score. Follow the approved shut-in procedure."
+        )
+    if losses and loss_class == "unclassified_no_rate":
+        result_notes.append(
+            "Loss class is unclassified: a pit volume has no time basis, so no rate class applies. "
+            "Supply the flow differential (or a duration) to get a rate."
+        )
+    if loss_then_influx:
+        result_notes.append(
+            "A loss together with gas or excess flow is the underground-flow signature. Do not treat "
+            "this as a plain loss: verify with a flow check and handle it as a potential influx."
+        )
+    elif losses:
         basis_text = {
             "both": "pit volume and a flow deficit",
             "pit_volume": "pit volume",
             "flow_equivalent": "a flow deficit",
         }.get(loss_basis, "a negative signal")
         note = (
-            f"Losses detected ({basis_text}). The packaged contract defines no loss threshold, so an "
-            f"authored ladder is applied: this is level {level} ({_ALERT_NAMES.get(level, 'unknown')}), "
-            "not a normal well."
+            f"Losses detected ({basis_text}), class {loss_class}. The packaged contract defines no loss "
+            f"threshold, so an authored ladder is applied: this is level {level} "
+            f"({_ALERT_NAMES.get(level, 'unknown')}), not a normal well."
         )
         if loss_basis in ("flow_equivalent", "both"):
             note += (
@@ -794,10 +834,26 @@ def well_control_assess(
             )
         note += " Treat as lost circulation and verify against the drilling programme."
         result_notes.append(note)
-    if level >= 3 and classification == "UNCONFIRMED_INFLUX":
+    # Name the actual cause: a note that blames gas on a pit-gain escalation misleads the driller.
+    if level >= 1 and classification == "GAS_INFLUX_SUSPECTED":
         result_notes.append(
-            "Escalation came from gas alone; no flow differential or pit gain was supplied to "
-            "confirm an influx."
+            "Escalation came from gas alone; no flow differential or pit gain was supplied to confirm "
+            "an influx. Gas alone is capped at Advisory."
+        )
+    elif level >= 1 and classification == "FLOW_ANOMALY":
+        result_notes.append(
+            "Escalation came from a flow differential alone; no pit gain or gas was supplied. Confirm "
+            "with a flow check before treating it as an influx."
+        )
+    elif level >= 1 and classification == "PWD_ANOMALY":
+        result_notes.append(
+            "Escalation came from the PWD residual alone. One sensor, capped at Alert: require "
+            "persistence and corroboration before acting on it."
+        )
+    elif level >= 1 and classification == "PIT_GAIN_UNEXPLAINED":
+        result_notes.append(
+            "Escalation came from pit gain alone; no flow differential or gas was supplied. Confirm "
+            "with a flow check."
         )
 
     return {

@@ -39,3 +39,15 @@ the claim is checkable.
 - Alert level 5 ("Blowout Risk") is defined in the engine but unreachable.
 
 Each is recorded in the relevant contract's `known_gaps`.
+
+## Argument names are validated by the client, not the server
+
+The MCP layer builds a per-tool argument model from the function signature and ignores names it does
+not recognise, so a misspelt argument arrives as a default value rather than an error. Two
+mitigations are in place: the empty-payload guard refuses a call where every signal is zero (which is
+what a fully misspelt call looks like), and likely names are accepted as aliases
+(`flow_check_positive` -> `flow_check_pumps_off`).
+
+A server-side strict rejection of unknown names cannot be expressed through this MCP layer without
+changing the tools' argument shape to a single `args` object, which would break every existing
+caller. That is a deliberate trade, recorded here rather than left as a silent hole.

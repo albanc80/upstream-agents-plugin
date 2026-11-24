@@ -48,6 +48,20 @@ jobs:
             uv run --script servers/advisory_core/main.py --call "$tool" "$*" | grep -q '"calibration_note"'
           done
 
+      - name: Field probes stay fixed
+        run: |
+          S=servers/advisory_core/main.py
+          # score and level must agree; no escalation may be labelled NORMAL
+          uv run --script $S --call well_control_assess '{"pwd_residual_sigma":3.0}' | grep -q '"alert_level": 3'
+          uv run --script $S --call well_control_assess '{"pwd_residual_sigma":3.0}' | grep -q '"classification": "PWD_ANOMALY"'
+          uv run --script $S --call well_control_assess '{"gas_units_pct":5.0}' | grep -q '"alert_level": 2'
+          # trace gas on a loss must not raise Emergency
+          uv run --script $S --call well_control_assess '{"pit_gain_bbl":-3,"gas_units_pct":0.8}' | grep -q '"alert_level": 2'
+          # a misspelled argument is refused, not silently dropped
+          if uv run --script $S --call well_control_assess '{"flow_check_positive":true}' 2>&1 | grep -q '"alert_level"'; then
+            echo "unknown argument was silently accepted"; exit 1
+          fi
+
       - name: Audit trail survives an update
         run: |
           # The trail must not be written inside the install folder, which is replaced on upgrade.

@@ -609,6 +609,65 @@ def test_geometry_is_optional_and_never_invented() -> None:
     assert out["volumetric_cap_bbl"] is None
 
 
+def test_pwd_alone_reaches_alert_with_score_and_level_agreeing() -> None:
+    """Score 0.60 and level Advisory contradicted each other: the cap is AT Alert, not below it."""
+    out = model.well_control_assess(pwd_residual_sigma=3.0)
+    assert out["alert_level"] == 3
+    assert out["kick_score"] == pytest.approx(0.60, abs=0.001)
+    assert out["classification"] == "PWD_ANOMALY"
+
+
+def test_gas_alone_reaches_advisory_with_score_and_level_agreeing() -> None:
+    out = model.well_control_assess(gas_units_pct=5.0)
+    assert out["alert_level"] == 2
+    assert out["kick_score"] == pytest.approx(0.40, abs=0.001)
+    assert out["classification"] == "GAS_INFLUX_SUSPECTED"
+
+
+def test_no_escalation_is_ever_labelled_normal() -> None:
+    """The invariant used to apply only at level >= 3, so a live Advisory read NORMAL."""
+    for kwargs in ({"pit_gain_bbl": 2.0}, {"flow_diff_gpm": 7.5},
+                   {"pwd_residual_sigma": 3.0}, {"gas_units_pct": 5.0}):
+        out = model.well_control_assess(**kwargs)
+        assert out["alert_level"] >= 1, kwargs
+        assert out["classification"] != "NORMAL", kwargs
+
+
+def test_pit_volume_loss_gets_no_rate_class() -> None:
+    """A volume has no time basis; classing 3, 5, 15 and 60 bbl all as partial was meaningless."""
+    for volume in (-3.0, -5.0, -15.0, -60.0):
+        out = model.well_control_assess(pit_gain_bbl=volume)
+        assert out["loss_class"] == "unclassified_no_rate"
+
+
+def test_loss_rate_sets_the_level_not_only_volume() -> None:
+    """-40 gpm is 57 bbl/hr: classed severe but previously sitting at Monitor."""
+    out = model.well_control_assess(flow_diff_gpm=-40.0)
+    assert out["loss_class"] == "severe"
+    assert out["alert_level"] == 3
+
+
+def test_underground_flow_needs_advisory_grade_gas() -> None:
+    """Trace gas on a seeping well must not raise an Emergency shut-in proposal."""
+    trace = model.well_control_assess(pit_gain_bbl=-3.0, gas_units_pct=0.8)
+    assert trace["alert_level"] < 4
+    assert trace["classification"] == "LOST_CIRCULATION"
+    real = model.well_control_assess(pit_gain_bbl=-5.0, gas_units_pct=3.0)
+    assert real["alert_level"] == 4
+    assert real["classification"] == "UNDERGROUND_FLOW_SUSPECTED"
+
+
+def test_notes_name_the_actual_cause() -> None:
+    """A pit-gain escalation blaming 'gas alone' tells the driller the wrong thing."""
+    pit_note = " ".join(model.well_control_assess(pit_gain_bbl=2.0)["notes"])
+    assert "gas alone" not in pit_note
+    flow_note = " ".join(model.well_control_assess(flow_diff_gpm=7.5)["notes"])
+    assert "gas alone" not in flow_note
+    underground = " ".join(model.well_control_assess(pit_gain_bbl=-5.0, gas_units_pct=3.0)["notes"])
+    assert "not" in underground and "plain loss" in underground
+    assert "Treat as lost circulation" not in underground
+
+
 def test_flow_only_loss_discloses_the_equivalent_basis() -> None:
     note = " ".join(model.well_control_assess(flow_diff_gpm=-200.0)["notes"])
     assert "equivalent" in note and "not a measured volume" in note

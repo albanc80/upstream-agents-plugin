@@ -389,6 +389,7 @@ def well_control_assess(
     hole_diameter_in: float | None = None,
     pipe_od_in: float | None = None,
     kick_tolerance_volume_bbl: float | None = None,
+    flow_check_positive: bool = False,
 ) -> dict[str, Any]:
     """Fuse kick signals into a probability, alert level and classification.
 
@@ -399,13 +400,16 @@ def well_control_assess(
     An empty or all-zero payload is refused rather than fused: the signals default to 0.0,
     so a mistyped argument name would otherwise read as a confident all-clear.
     """
+    # flow_check_positive is accepted as an alias: it is the name a caller reaches for first, and a
+    # misspelt evidence flag silently reading as "no flow check" is exactly what must not happen.
+    pump_off = flow_check_pumps_off or flow_check_positive
     try:
         return _calibrated(model.well_control_assess(
             pit_gain_bbl=pit_gain_bbl,
             flow_diff_gpm=flow_diff_gpm,
             gas_units_pct=gas_units_pct,
             pwd_residual_sigma=pwd_residual_sigma,
-            flow_check_pumps_off=flow_check_pumps_off,
+            flow_check_pumps_off=pump_off,
             hole_diameter_in=hole_diameter_in,
             pipe_od_in=pipe_od_in,
             kick_tolerance_volume_bbl=kick_tolerance_volume_bbl,
